@@ -7,11 +7,9 @@
 (defn stoke
   "I don't do a lot."
   [project file & args]
-  (let [config      (:stoke project)
-        ui          (or (:ui config) s/start)
-        keybindings (or (:keybindings config) v/command)]
+  (let [{u :ui k :keybindings :or {u s/start k v/command}} (:stoke project)]
     (e/read-file file)
-    (ui keybindings)))
+    (u k)))
 
 (comment
 
