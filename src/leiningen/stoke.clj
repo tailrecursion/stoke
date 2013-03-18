@@ -1,98 +1,64 @@
 (ns leiningen.stoke
   (:require
+    [clojure.zip        :as z]
     [clojure.string     :as string]
     [clojure.pprint     :as pp]
     [lanterna.screen    :as s]
     [lanterna.terminal  :as t]))
 
-(def scr    (atom nil))
-(def src    (atom ""))
-(def exp    (atom [[0 0] [0 0]]))
-
+(def point (atom nil))
 (def file "../javelin/src/cljs/tailrecursion/javelin/core.cljs")
 
-(defn pp-form [form]
-  (binding [*print-meta*                true
-            pp/*print-pprint-dispatch*  pp/code-dispatch]
-    (with-out-str (pp/pprint form))))
+(defmulti stoke-dispatch
+  (fn [x] (boolean (identical? (z/node @point) x))))
 
-(def ^:dynamic *pprinter* pp-form)
+(defmethod stoke-dispatch true [thing]
+  (print "\u001B[35m")
+  (pp/code-dispatch thing)
+  (print "\u001B[0m"))
 
-(defn code-str [f]
-  (->> (str "(" (slurp f) ")")
-    read-string
-    (mapv *pprinter*)
-    (string/join "\n")))
+(defmethod stoke-dispatch :default [thing]
+  (pp/code-dispatch thing))
 
-(defn lines [s] (string/split s #"\n"))
+(defn cls [scr]
+  (let [[cols rows] (s/get-size scr)
+        blank       (format (format "%%%ds" cols) " ")]
+    (doall (map #(s/put-string scr 0 % blank) (range 0 rows)))))
 
-(defn safe-read-string [s]
-  (try (read-string s)
-    (catch Throwable e ::nope)))
+(defn make-printer [scr]
+  (fn [src]
+    (let [draw-line #(s/put-string scr 0 %1 %2)]
+      (doall (map-indexed draw-line (string/split src #"\n"))))))
 
-(defn cur-exp-str []
-  (let [lns   (string/join "\n" (drop (get-in @exp [0 1]) (lines @src))) 
-        src   (subs lns (get-in @exp [0 0]))
-        chr   (first src)]
-    (loop [n 0, prev ""]
-      (if (< n (count src))
-        (let [f (subs src 0 n) 
-              x (safe-read-string f)
-              y (safe-read-string prev)]
-          (if (< (count (string/trim f)) 50)
-            (println ">>>" f "<<<")) 
-          (if (or (= ::nope x) (not= x y)) (recur (inc n) f) prev))
-        (do (s/clear @scr) (s/redraw @scr) (throw (Exception. (str "unreadable: " src))))))))
-
-(defn update-exp! []
-  (let [cur (lines (cur-exp-str))
-        pad (if (= 1 (count cur)) (get-in @exp [0 0]) 0)
-        x   (+ pad (count (last cur))) 
-        y   (+ (get-in @exp [0 1]) (dec (count cur)))]
-    (swap! exp assoc 1 [x y])))
-
-(defn draw [& _]
-  (update-exp!)
-  (s/clear @scr)
-  (let [src (lines @src)
-        [[x1 y1] [x2 y2]] @exp]
-    (loop [x 0, y 0]
-      (let [color (cond (or (and (= y1 y2 y) (<= x1 x) (> x2 x))
-                            (and (= y1 y) (not= y1 y2) (<= x1 x))
-                            (and (= y2 y) (not= y1 y2) (> x2 x))
-                            (and (< y1 y) (> y2 y))) [{:fg :black :bg :blue}]
-                        :else [])
-            line  (try (nth src y) (catch Throwable e)) 
-            len   (count line)]
-        (if (< x len) (apply s/put-string @scr x y (subs line x (inc x)) color))
-        (cond (< x (dec len))   (recur (inc x) y)
-              (< y (count src)) (recur 0 (inc y))))))
-  (s/redraw @scr)
-  ::ok)
-
-(defn right! []
-  (let [[x2 y2] (nth @exp 1)
-        lns     (drop y2 (lines @src))]
-    (cond (and (>= (inc x2) (count (first lns))) (< 1 (count lns))) 
-          (swap! exp assoc 0 [0 (inc y2)])
-          (< (inc x2) (count (first lns)))
-          (swap! exp assoc 0 [(inc x2) y2]))
-    (draw)))
+(defn draw [scr]
+  (pp/with-pprint-dispatch
+    stoke-dispatch
+    ((make-printer scr) (with-out-str (pp/pprint (z/root @point))))))
 
 (defn stoke
   "I don't do a lot."
   [project & args]
-  (reset! scr   (s/get-screen :unix {:resize-listener draw})) 
-  (reset! src   (code-str file))
-  (s/in-screen
-    @scr
-    (draw)
-    (loop []
-      (if (case (s/get-key-blocking @scr)
-            \q nil
-            \l (right!)
-            (draw))
-        (recur)))))
+  (pp/with-pprint-dispatch
+    stoke-dispatch
+    (let [scr   (s/get-screen :unix)
+          frm   (z/seq-zip (read-string (str "(" (slurp file) ")")))
+          prt   (make-printer scr)]
+      (reset! point (z/right (z/down frm)))
+      (s/in-screen
+        scr
+        (loop []
+          (cls scr)
+          (s/redraw scr)
+          (draw scr) 
+          (s/redraw scr)
+          (if (case (s/get-key-blocking scr)
+                \q nil
+                \l (if (seq (z/rights @point)) (reset! point (z/right @point))) 
+                \h (if (seq (z/lefts @point)) (reset! point (z/left @point))) 
+                \j (reset! point ((fnil identity @point) (z/down @point)))
+                \k (reset! point ((fnil identity @point) (z/up @point)))
+                ::ok)
+            (recur)))))))
 
 (comment
 
