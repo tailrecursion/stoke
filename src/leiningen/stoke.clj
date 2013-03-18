@@ -5,14 +5,11 @@
     [lanterna.screen    :as s]
     [lanterna.terminal  :as t]))
 
-(declare pp-form)
-
 (def scr    (atom nil))
-(def forms  (atom nil))
-(def curx   (atom 0))
-(def cury   (atom 0))
+(def src    (atom ""))
+(def exp    (atom [[0 0] [0 0]]))
 
-(def file "/home/micha/src/checkout/javelin/src/cljs/tailrecursion/javelin/core.cljs")
+(def file "../javelin/src/cljs/tailrecursion/javelin/core.cljs")
 
 (defn pp-form [form]
   (binding [*print-meta*                true
@@ -27,97 +24,73 @@
     (mapv *pprinter*)
     (string/join "\n")))
 
-(defn form-str [src]
-  (loop [n 0 ret ""]
-    (if (< n (count src))
-      (let [f (subs src 0 n)
-            x (try (read-string f)
-                (catch Throwable e ::nope))]
-        (if (or (= ::nope x) (not= (string/trim ret) (string/trim f)))
-          (recur (inc n) f)
-          f))
-      (throw (Exception. (str "unreadable form: " src))))))
+(defn lines [s] (string/split s #"\n"))
+
+(defn safe-read-string [s]
+  (try (read-string s)
+    (catch Throwable e ::nope)))
+
+(defn cur-exp-str []
+  (let [lns   (string/join "\n" (drop (get-in @exp [0 1]) (lines @src))) 
+        src   (subs lns (get-in @exp [0 0]))
+        chr   (first src)]
+    (loop [n 0, prev ""]
+      (if (< n (count src))
+        (let [f (subs src 0 n) 
+              x (safe-read-string f)
+              y (safe-read-string prev)]
+          (if (< (count (string/trim f)) 50)
+            (println ">>>" f "<<<")) 
+          (if (or (= ::nope x) (not= x y)) (recur (inc n) f) prev))
+        (do (s/clear @scr) (s/redraw @scr) (throw (Exception. (str "unreadable: " src))))))))
+
+(defn update-exp! []
+  (let [cur (lines (cur-exp-str))
+        pad (if (= 1 (count cur)) (get-in @exp [0 0]) 0)
+        x   (+ pad (count (last cur))) 
+        y   (+ (get-in @exp [0 1]) (dec (count cur)))]
+    (swap! exp assoc 1 [x y])))
 
 (defn draw [& _]
+  (update-exp!)
   (s/clear @scr)
-  (let [fg          (atom :white)
-        endx        (atom @curx)
-        endy        (atom @cury)
-        [cols rows] (s/get-size @scr)]
-    (loop [line 0 lines (string/split @forms #"\n")]
-      (let [this-line   (first lines)
-            rest-lines  (rest lines)]
-        (if (and (< @curx (count this-line)) (= @cury line)) 
-          (let [src         (subs (string/join "\n" lines) @curx)
-                form        (form-str src)
-                form-lines  (string/split form #"\n")
-                startx      (if (= 1 (count form-lines)) (inc @curx) 0)]
-            (reset! endx (+ startx (count (last form-lines))))
-            (reset! endy (+ @cury (dec (count form-lines)))))) 
-        (cond
-          (and (< @curx (count this-line)) (= line @endy) (= line @cury)) 
-          (do
-            (s/put-string @scr 0 line (subs this-line 0 @curx))
-            (s/put-string @scr @curx line (subs this-line @curx (- @endx @curx)) {:fg :yellow})
-            (s/put-string @scr @endx line (format (format "%%%ds" (- cols @endx)) " ")))
-
-          (and (< @curx (count this-line)) (= line @cury)) 
-          (do
-            (s/put-string @scr 0 line (subs this-line 0 @curx))
-            (s/put-string @scr @curx line
-                          (format (format "%%-%ds" (- cols @curx))
-                                  (subs this-line @curx))
-                          {:fg :yellow}))
-
-          (and (< @curx (count this-line)) (< line @endy) (> line @cury))
-          (s/put-string @scr 0 line (format (format "%%-%ds" cols) this-line) {:fg :yellow})
-            
-
-          (and (< @curx (count this-line)) (= line @endy)) 
-          (do
-            (s/put-string @scr 0 line (subs this-line 0 @endx) {:fg :yellow})
-            (if (< @endx (count this-line))
-              (s/put-string @scr @endx line (subs this-line @endx))))
-
-          :else
-          (s/put-string @scr 0 line (format (format "%%-%ds" cols) this-line))) 
-        (if (and (seq rest-lines) (< line (dec rows))) 
-          (recur (inc line) (rest lines)))))) 
+  (let [src (lines @src)
+        [[x1 y1] [x2 y2]] @exp]
+    (loop [x 0, y 0]
+      (let [color (cond (or (and (= y1 y2 y) (<= x1 x) (> x2 x))
+                            (and (= y1 y) (not= y1 y2) (<= x1 x))
+                            (and (= y2 y) (not= y1 y2) (> x2 x))
+                            (and (< y1 y) (> y2 y))) [{:fg :black :bg :blue}]
+                        :else [])
+            line  (try (nth src y) (catch Throwable e)) 
+            len   (count line)]
+        (if (< x len) (apply s/put-string @scr x y (subs line x (inc x)) color))
+        (cond (< x (dec len))   (recur (inc x) y)
+              (< y (count src)) (recur 0 (inc y))))))
   (s/redraw @scr)
   ::ok)
 
-(defn cursor [dir]
-  (let [[cols rows] (s/get-size @scr)]
-    (cond
-      (and (= :left dir) (< 0 @curx))
-      (swap! curx dec)
-
-      (and (= :right dir) (< @curx (dec cols)))
-      (swap! curx inc)
-
-      (and (= :down dir) (< @cury (dec rows)))
-      (swap! cury inc)
-
-      (and (= :up dir) (< 0 @cury))
-      (swap! cury dec))
-    (s/move-cursor @scr @curx @cury)
+(defn right! []
+  (let [[x2 y2] (nth @exp 1)
+        lns     (drop y2 (lines @src))]
+    (cond (and (>= (inc x2) (count (first lns))) (< 1 (count lns))) 
+          (swap! exp assoc 0 [0 (inc y2)])
+          (< (inc x2) (count (first lns)))
+          (swap! exp assoc 0 [(inc x2) y2]))
     (draw)))
 
 (defn stoke
   "I don't do a lot."
   [project & args]
   (reset! scr   (s/get-screen :unix {:resize-listener draw})) 
-  (reset! forms (code-str file))
+  (reset! src   (code-str file))
   (s/in-screen
     @scr
     (draw)
     (loop []
       (if (case (s/get-key-blocking @scr)
             \q nil
-            \h (cursor :left)
-            \l (cursor :right)
-            \j (cursor :down)
-            \k (cursor :up)
+            \l (right!)
             (draw))
         (recur)))))
 
