@@ -35,7 +35,7 @@
           lines         (string/split src #"\n")
           visible-lines (take (- rows @cmd-rows) (drop @scroll-top lines))]
       (doall (map-indexed draw-line visible-lines))
-      (draw-line (dec rows) "comand> (fuck-off you-idiot)")
+      (draw-line (dec rows) "\u001B[0mcomand> ")
       )))
 
 (defn draw [scr]
@@ -52,5 +52,5 @@
         (s/redraw scr)
         (draw scr) 
         (s/redraw scr)
-        (if (not= :quit (command (s/get-key-blocking scr))) 
+        (if (not= :quit (command [@e/mode (s/get-key-blocking scr)])) 
           (recur))))))
