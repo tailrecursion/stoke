@@ -83,9 +83,9 @@
     (binding [*print-meta* true]
       (prn (read-all (p s)))) )
 
-  (pp "(defn ^{:foo true} bar [x y] #(doit x y %))")
+  (pp "(defn ^{:foo true} bar [x y] #(doit x y \"and\" %))")
   ;=>
-  [^{:delims [\( \)]} ["defn" ^{:prefix "^", :delims [\{ \}]} [":foo" "true"] "bar" ^{:delims [\[ \]]} ["x" "y"] ^{:prefix "#", :delims [\( \)]} ["doit" "x" "y" "%"]]]
+  [^{:delims [\( \)]} ["defn" ^{:prefix "^", :delims [\{ \}]} [":foo" "true"] "bar" ^{:delims [\[ \]]} ["x" "y"] ^{:prefix "#", :delims [\( \)]} ["doit" "x" "y" "\"and\"" "%"]]]
 
   )
 
