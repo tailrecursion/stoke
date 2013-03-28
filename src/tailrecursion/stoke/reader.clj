@@ -5,72 +5,83 @@
                      StringReader])
   (:refer-clojure :exclude [read read-string]))
 
-(defn whitespace? [ch]
-  (or (Character/isWhitespace ch) (= ch \,)))
+(def delims       {\[ \] \{ \} \( \)})
+(def macros       #{"^" "#" "#=" "#_" "#'" "'" "`" "~" "~@"})
+(def whitespace?  #(or (Character/isWhitespace %) (= % \,)))
+(def eof?         #(not (pos? %)))
+(def char*        #(if (pos? %) (char %)))
 
-(def delims
-  {\[ \] \{ \} \( \)})
+(defn peek-ch [rdr]
+  (let [ch (.read rdr)]
+    (if (pos? ch) (.unread rdr ch))
+    ch))
 
-(defn read-string
-  [rdr eof-value]
-  {:type :scalar
-   :val (pr-str (clojure.core/read rdr))})
+(defn gobble-whitespace [rdr]
+  (loop [ch (.read rdr)]
+    (if (whitespace? ch)
+      (recur (.read rdr))
+      (do (if (not (eof? ch)) (.unread rdr ch)) 
+        rdr))))
 
-(defn read-scalar
-  [rdr eof-value]
-  {:type :scalar
-   :val (let [sb (StringBuffer.)]
-          (loop [ch (.read rdr)]
-            (if (neg? ch)
-              (if (empty? sb)
-                eof-value
-                (str sb))
-              (if (or (whitespace? (char ch))
-                      ((set (mapcat identity delims)) (char ch)))
-                (if (empty? sb)
-                  (recur (.read rdr))
-                  (do (.unread rdr ch)
-                      (str sb)))
-                (do (.append sb (char ch))
-                    (recur (.read rdr)))))))})
-
+(defn read-scalar [rdr]
+  (gobble-whitespace rdr)
+  (or (if (= \" (char* (peek-ch rdr))) (pr-str (clojure.core/read rdr)))
+      (let [sb (StringBuffer.)
+            end? #(or (eof? %) (whitespace? %) ((set (mapcat identity delims)) (char* %)))]
+        (loop [ch (.read rdr)]
+          (if (end? ch)
+            (do (.unread rdr ch) (if (not (empty? sb)) (str sb)))
+            (do (.append sb (char* ch)) (recur (.read rdr))))))))
+  
 (declare read)
 
-(defn read-sequence
-  [rdr type delim eof-value]
-  {:type :sequence
-   :val (loop [s []]
-          (let [ch (.read rdr)]
-            (if (= delim (char ch))
-              s
-              (do (.unread rdr ch)
-                  (recur (conj s (read rdr eof-value)))))))})
+(defn read-sequence [rdr]
+  (gobble-whitespace rdr)
+  (when-let [open (get (set (keys delims)) (char* (peek-ch rdr)))]
+    (let [close (get delims open)
+          end? #(or (eof? %) (= close (char* %)))]
+      (.skip rdr 1) 
+      (loop [items []]
+        (gobble-whitespace rdr)
+        (let [ch (.read rdr)]
+          (if (end? ch)
+            (with-meta items {:delims [open close]})
+            (do (.unread rdr ch) (recur (conj items (read rdr))))))))))
 
-(defn read
-  [rdr eof-value]
-  (let [ch (.read rdr)]
-    (if (pos? ch)
-      (do (.unread rdr ch)
-          (if-let [delim (delims (char ch))]
-            (read-sequence rdr delim eof-value)
-            (read-scalar rdr eof-value)))
-      eof-value)))
+(defn read [rdr]
+  (or (read-sequence rdr)
+      (read-scalar rdr)))
+
+(defn collapse-prefix [forms]
+  (if (vector? forms)
+    (let [collapse (fn [xs x]
+                     (let [x (collapse-prefix x)]
+                       (if (and (contains? macros (peek xs)) (vector? x))
+                         (conj (pop xs) (vary-meta x merge {:prefix (peek xs)})) 
+                         (conj xs x))))]
+      (with-meta (reduce collapse [] forms) (meta forms)))
+    forms))
+
+(defn read-all [rdr]
+  (collapse-prefix
+    (loop [forms []]
+      (if-let [form (read rdr)]
+        (recur (conj forms form))
+        forms))))
 
 (defn read-file
   [file]
   (with-open [rdr (PushbackReader. (io/reader file))]
-    (loop [forms []]
-      (let [form (read rdr ::eof)]
-        (if (= form ::eof)
-          forms
-          (recur (conj forms form)))))))
+    (read-all rdr)))
 
 (comment
 
   (defn p [s]
     (PushbackReader. (StringReader. s)))
   
-  (read-scalar (p "abc"))
+  (binding [*print-meta* true]
+    (prn (read-all (p "#(asdf '(1 2 3) #{foo bar})")))) 
+  (char 98)
 
   )
 
