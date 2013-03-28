@@ -79,30 +79,13 @@
   (defn p [s]
     (PushbackReader. (StringReader. s)))
   
-  (binding [*print-meta* true]
-    (prn (read-all (p "#(asdf '(1 2 3) #{foo bar})")))) 
-  (char 98)
+  (defn pp [s]
+    (binding [*print-meta* true]
+      (prn (read-all (p s)))) )
+
+  (pp "(defn ^{:foo true} bar [x y] #(doit x y %))")
+  ;=>
+  [^{:delims [\( \)]} ["defn" ^{:prefix "^", :delims [\{ \}]} [":foo" "true"] "bar" ^{:delims [\[ \]]} ["x" "y"] ^{:prefix "#", :delims [\( \)]} ["doit" "x" "y" "%"]]]
 
   )
 
-;; (defn factorial
-;;   "Returns factorial of n"
-;;   [n]
-;;   (reduce * (range 1 (inc n))))
-
-;; {:type :list
-;;  :val [{:type :scalar
-;;         :val "defn"}
-;;        {:type :scalar
-;;         :val "factorial"}
-;;        {:type :vector
-;;         :val [{:type :scalar
-;;                :val "n"}]}
-;;        {:type :list
-;;         :val [{:type :scalar
-;;                :val "reduce"}
-;;               {:type :scalar
-;;                :val "*"}
-;;               {:type :vector
-;;                :val [{:type :scalar
-;;                       :val "n"}]}]}]}
