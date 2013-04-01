@@ -8,6 +8,7 @@
 (def delims       {\[ \] \{ \} \( \)})
 (def macros       #{"^" "#" "#=" "#_" "#'" "'" "`" "~" "~@"})
 (def char*        #(if (pos? %) (char %)))
+(def macro?       #(and (symbol? %) (contains? macros (name %))))
 (def eof?         #(not (pos? %)))
 (def crlf?        #(= \newline (char* %)))
 (def whitespace?  #(and (not (crlf? %))
@@ -40,11 +41,11 @@
 
 (defn read-scalar [rdr]
   (gobble-whitespace rdr)
-  (or (if (= \" (char* (peek-ch rdr))) (pr-str (clojure.core/read rdr)))
+  (or (if (= \" (char* (peek-ch rdr))) (symbol (pr-str (clojure.core/read rdr))))
       (let [sb (StringBuffer.)]
         (loop [ch (.read rdr)]
           (if (not (word? ch)) 
-            (do (.unread rdr ch) (if (not (empty? sb)) (str sb)))
+            (do (.unread rdr ch) (if (not (empty? sb)) (symbol (str sb))))
             (do (.append sb (char* ch)) (recur (.read rdr))))))))
   
 (declare read)
@@ -71,7 +72,7 @@
   (if (vector? forms)
     (let [collapse (fn [xs x]
                      (let [x (collapse-prefix x)]
-                       (if (and (contains? macros (peek xs)) (vector? x))
+                       (if (and (macro? (peek xs)) (vector? x))
                          (conj (pop xs) (vary-meta x merge {:prefix (peek xs)})) 
                          (conj xs x))))]
       (with-meta (reduce collapse [] forms) (meta forms)))
@@ -97,22 +98,6 @@
   (defn pp [s]
     (binding [*print-meta* true]
       (prn (read-all (p s)))) )
-
-  (pp "()") 
-  ;=>
-  [^{:delims [\( \)]} []]
-
-  (pp "'()")
-  ;=>
-  [^{:prefix "'", :delims [\( \)]} []]
-
-  (pp "#{1 2 3}")
-  ;=>
-  [^{:prefix "#", :delims [\{ \}]} ["1" "2" "3"]]
-
-  (pp "(defn ^{:foo true} bar [x y] #(doit x y #\"and\" %))")
-  ;=>
-  [^{:delims [\( \)]} ["defn" ^{:prefix "^", :delims [\{ \}]} [":foo" "true"] "bar" ^{:delims [\[ \]]} ["x" "y"] ^{:prefix "#", :delims [\( \)]} ["doit" "x" "y" "#\"and\"" "%"]]]
 
   )
 
