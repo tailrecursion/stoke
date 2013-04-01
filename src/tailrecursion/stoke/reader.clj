@@ -7,9 +7,13 @@
 
 (def delims       {\[ \] \{ \} \( \)})
 (def macros       #{"^" "#" "#=" "#_" "#'" "'" "`" "~" "~@"})
-(def whitespace?  #(or (Character/isWhitespace %) (= % \,)))
-(def eof?         #(not (pos? %)))
 (def char*        #(if (pos? %) (char %)))
+(def eof?         #(not (pos? %)))
+(def crlf?        #(= \newline (char* %)))
+(def whitespace?  #(and (not (crlf? %))
+                        (or (Character/isWhitespace %) (= (char* %) \,))))
+(def delim?       #((set (mapcat identity delims)) (char* %)))
+(def word?        #(not (or (eof? %) (whitespace? %) (crlf? %) (delim? %))))
 
 (defn peek-ch [rdr]
   (let [ch (.read rdr)]
@@ -20,16 +24,26 @@
   (loop [ch (.read rdr)]
     (if (whitespace? ch)
       (recur (.read rdr))
-      (do (if (not (eof? ch)) (.unread rdr ch)) 
-        rdr))))
+      (if (not (eof? ch)) (.unread rdr ch) ))))
+
+(defn read-break [rdr]
+  (gobble-whitespace rdr)
+  (when (crlf? (peek-ch rdr))
+    (.skip rdr 1)
+    (loop [seen [(.read rdr)]]
+      (let [c       (peek seen)
+            unread  (fn [v] (mapv #(.unread rdr %) (reverse v)))]
+        (cond (crlf? c)       :break
+              (eof? c)        (do (unread (pop seen)) nil) 
+              (whitespace? c) (recur (conj seen (.read rdr)))
+              :else           (do (unread seen) (read-break rdr)))))))
 
 (defn read-scalar [rdr]
   (gobble-whitespace rdr)
   (or (if (= \" (char* (peek-ch rdr))) (pr-str (clojure.core/read rdr)))
-      (let [sb (StringBuffer.)
-            end? #(or (eof? %) (whitespace? %) ((set (mapcat identity delims)) (char* %)))]
+      (let [sb (StringBuffer.)]
         (loop [ch (.read rdr)]
-          (if (end? ch)
+          (if (not (word? ch)) 
             (do (.unread rdr ch) (if (not (empty? sb)) (str sb)))
             (do (.append sb (char* ch)) (recur (.read rdr))))))))
   
@@ -37,19 +51,20 @@
 
 (defn read-sequence [rdr]
   (gobble-whitespace rdr)
-  (when-let [open (get (set (keys delims)) (char* (peek-ch rdr)))]
-    (let [close (get delims open)
-          end? #(or (eof? %) (= close (char* %)))]
+  (when-let [open ((set (keys delims)) (char* (peek-ch rdr)))]
+    (let [close (get delims open)]
       (.skip rdr 1) 
-      (loop [items []]
-        (gobble-whitespace rdr)
-        (let [ch (.read rdr)]
-          (if (end? ch)
-            (with-meta items {:delims [open close]})
-            (do (.unread rdr ch) (recur (conj items (read rdr))))))))))
+      (loop [items [] nxt (read rdr)]
+        (if (not nxt)
+          (let [ch (.read rdr)]
+            (if (or (eof? ch) (not= close (char* ch)))
+              (throw (Exception. "Unterminated sequence."))
+              (with-meta items {:delims [open close]})))
+          (recur (conj items nxt) (read rdr)))))))
 
 (defn read [rdr]
-  (or (read-sequence rdr)
+  (or (read-break rdr)
+      (read-sequence rdr)
       (read-scalar rdr)))
 
 (defn collapse-prefix [forms]
@@ -83,7 +98,7 @@
     (binding [*print-meta* true]
       (prn (read-all (p s)))) )
 
-  (pp "()")
+  (pp "()") 
   ;=>
   [^{:delims [\( \)]} []]
 
