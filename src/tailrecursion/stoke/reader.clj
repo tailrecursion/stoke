@@ -1,72 +1,57 @@
 (ns tailrecursion.stoke.reader
   (:require [clojure.java.io :as io]
-            [clojure.core    :as core])
-  (:import  [java.io PushbackReader
-                     StringReader])
+            [clojure.core    :as core]
+            [clojure.string  :as string])
   (:refer-clojure :exclude [read read-string]))
 
 (def delims       {\[ \] \{ \} \( \)})
 (def macros       #{"^" "#" "#=" "#_" "#'" "'" "`" "~" "~@"})
-(def char*        #(if (pos? %) (char %)))
 (def macro?       #(and (symbol? %) (contains? macros (name %))))
-(def eof?         #(not (pos? %)))
-(def crlf?        #(= \newline (char* %)))
-(def whitespace?  #(and (not (crlf? %))
-                        (or (Character/isWhitespace %) (= (char* %) \,))))
-(def delim?       #((set (mapcat identity delims)) (char* %)))
-(def word?        #(not (or (eof? %) (whitespace? %) (crlf? %) (delim? %))))
 
-(defn peek-ch [rdr]
-  (let [ch (.read rdr)]
-    (if (pos? ch) (.unread rdr ch))
-    ch))
+(defn gobble-whitespace [src]
+  (swap! src string/replace-first #"^[\s,&&[^\n]]+" "")
+  nil)
 
-(defn gobble-whitespace [rdr]
-  (loop [ch (.read rdr)]
-    (if (whitespace? ch)
-      (recur (.read rdr))
-      (if (not (eof? ch)) (.unread rdr ch) ))))
+(defn read-break [src]
+  (gobble-whitespace src)
+  (if (= \newline (first @src))
+    (if (not= @src (swap! src string/replace-first #"^\n\s*\n" ""))
+      :break
+      (do (swap! src subs 1) nil))))
 
-(defn read-break [rdr]
-  (gobble-whitespace rdr)
-  (when (crlf? (peek-ch rdr))
-    (.skip rdr 1)
-    (loop [seen [(.read rdr)]]
-      (let [c       (peek seen)
-            unread  (fn [v] (mapv #(.unread rdr %) (reverse v)))]
-        (cond (crlf? c)       :break
-              (eof? c)        (do (unread (pop seen)) nil) 
-              (whitespace? c) (recur (conj seen (.read rdr)))
-              :else           (do (unread seen) (read-break rdr)))))))
+(defn read-str [src]
+  (gobble-whitespace src)
+  (when-let [s (and (= \" (first @src)) (core/read-string @src))] 
+    (swap! src subs (+ 2 (count s)))
+    s))
 
-(defn read-scalar [rdr]
-  (gobble-whitespace rdr)
-  (or (if (= \" (char* (peek-ch rdr))) (symbol (pr-str (clojure.core/read rdr))))
-      (let [sb (StringBuffer.)]
-        (loop [ch (.read rdr)]
-          (if (not (word? ch)) 
-            (do (.unread rdr ch) (if (not (empty? sb)) (symbol (str sb))))
-            (do (.append sb (char* ch)) (recur (.read rdr))))))))
+(defn read-scalar [src]
+  (gobble-whitespace src)
+  (when-let [s (re-find #"^[^\s,\"\[\](){}]+" @src)]
+    (swap! src subs (count s))
+    (symbol s)))
   
 (declare read)
 
-(defn read-sequence [rdr]
-  (gobble-whitespace rdr)
-  (when-let [open ((set (keys delims)) (char* (peek-ch rdr)))]
+(defn read-sequence [src]
+  (gobble-whitespace src)
+  (when-let [open ((set (keys delims)) (first @src))]
     (let [close (get delims open)]
-      (.skip rdr 1) 
-      (loop [items [] nxt (read rdr)]
+      (swap! src subs 1)
+      (loop [items [] nxt (read src)]
         (if (not nxt)
-          (let [ch (.read rdr)]
-            (if (or (eof? ch) (not= close (char* ch)))
-              (throw (Exception. "Unterminated sequence."))
-              (with-meta items {:delims [open close]})))
-          (recur (conj items nxt) (read rdr)))))))
+          (let [ch (first @src)]
+            (if (or (not ch) (not= close ch))
+              (throw (Exception. (str "Unterminated sequence: " @src))))
+            (swap! src subs 1)
+            (with-meta items {:delims [open close]}))
+          (recur (conj items nxt) (read src)))))))
 
-(defn read [rdr]
-  (or (read-break rdr)
-      (read-sequence rdr)
-      (read-scalar rdr)))
+(defn read [src]
+  (or (read-break src)
+      (read-str src)
+      (read-sequence src)
+      (read-scalar src)))
 
 (defn collapse-prefix [forms]
   (if (vector? forms)
@@ -78,26 +63,26 @@
       (with-meta (reduce collapse [] forms) (meta forms)))
     forms))
 
-(defn read-all [rdr]
+(defn read-all [src]
   (collapse-prefix
     (loop [forms []]
-      (if-let [form (read rdr)]
+      (if-let [form (read src)]
         (recur (conj forms form))
         forms))))
 
 (defn read-file
   [file]
-  (with-open [rdr (PushbackReader. (io/reader file))]
-    (read-all rdr)))
+  (read-all (atom (slurp file))))
+
+(defn read-string
+  [s]
+  (read (atom s)))
 
 (comment
 
-  (defn p [s]
-    (PushbackReader. (StringReader. s)))
-  
-  (defn pp [s]
-    (binding [*print-meta* true]
-      (prn (read-all (p s)))) )
-
+  (read-string "{:foo  \n  \n bar}")
+  (read-string "\n \"bar\"")
+  (read-string "(1 2\n 3)")
+  (read-file "project.clj")
   )
 
