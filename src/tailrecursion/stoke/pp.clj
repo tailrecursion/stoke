@@ -32,7 +32,7 @@
   (let [add-group #(conj %1 (into [:group] (cat (map pretty %2))))]
   (->>
     (reduce add-group [] (partition 2 x))
-    (cat :break)
+    (cat :line)
     (into [:align]))))
 
 (defn pp-coll
@@ -44,11 +44,13 @@
     (into [:group (str p l)] (conj (vec body) r))))
 
 (defn pp-seq-leading
-  [n x]
-  (let [head (into [:group] (cat (map pretty (take n x))))
-        body (cat (map pretty (drop n x)))
-        nest (into (if (< n (count x)) [head :line] [head]) body)]
-    (pp-coll x (into [:nest 2] nest))))
+  ([n x]
+   (pp-seq-leading n x :line))
+  ([n x br] 
+   (let [head (into [:group] (cat (map pretty (take n x))))
+         body (cat (map pretty (drop n x)))
+         nest (into (if (< n (count x)) [head br] [head]) body)]
+     (pp-coll x (into [:nest 2] nest)))))
 
 (defmulti pp-seq #(str (first %)))
 
@@ -64,13 +66,28 @@
                 ((if (vector? b) (get-method pretty :vec-pairs) pretty) b))
         head  (into [:group] (cat " " (keep identity [op bind])))
         body  (cat (map pretty (drop 2 x)))
-        nest  (into (if (< 2 (count x)) [head :break] [head]) body)]
+        nest  (into (if (< 2 (count x)) [head :line] [head]) body)]
     (pp-coll x (into [:nest 2] nest))))
 
 (defmethod pp-seq "cond" [x]
   (let [op    (pretty (first x))
         cases (into [:nest 2] (drop 1 (by-pairs (subvec x 1))))]
     (pp-coll x op :line cases)))
+
+(defmethod pp-seq "case"
+  [x]
+  (let [op    (pretty (first x))
+        expr  (pretty (second x))
+        cases [:group (into [:nest 2] (drop 1 (by-pairs (subvec x 2))))]]
+    (pp-coll x [:group op :line expr] :line cases)))
+
+(defmethod pp-seq "defproject"
+  [x]
+  (let [op    (pretty (first x))
+        expr  (pretty (second x))
+        ver   (pretty (nth x 2))
+        props [:group (into [:nest 2] (drop 1 (by-pairs (subvec x 3))))]]
+    (pp-coll x [:group op :line expr :line ver] :line props)))
 
 (defmulti pretty type*)
 
@@ -83,7 +100,9 @@
     [:text (apply str p (first d) x (second d))]))
 
 (defmethod pretty :str [x]
-  ((get-method pretty :sym) (symbol (pr-str (first x)))))
+  (let [p (prefix x)
+        d (delims x)]
+    [:text (str p (first d)) (pr-str (first x)) (str (second d))]))
 
 (defmethod pretty :key [x] x)
 
@@ -91,6 +110,9 @@
 
 (defmethod pretty :set [x]
   (pp-coll x (into [:align] (cat (map pretty x)))))
+
+(defn foo [x]
+  #"asdf")
 
 (defmethod pretty :map [x]
   (pp-coll x (by-pairs x)))
@@ -100,8 +122,6 @@
 (defmethod pretty :vec-pairs [x] ((get-method pretty :map) x))
 
 (defprinter pprint pretty {:width 80})
-
-(defmethod pp-seq "case" [x] ((get-method pp-seq "defn") x))
 
 (defmethod pp-seq "def" [x] ((get-method pp-seq "defn") x))
 

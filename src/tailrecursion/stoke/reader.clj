@@ -57,7 +57,7 @@
   (if (vector? forms)
     (let [collapse (fn [xs x]
                      (let [x (collapse-prefix x)]
-                       (if (and (macro? (peek xs)) (vector? x))
+                       (if (and (macro? (peek xs)) (coll? x))
                          (conj (pop xs) (vary-meta x merge {:prefix (peek xs)})) 
                          (conj xs x))))]
       (with-meta (reduce collapse [] forms) (meta forms)))
