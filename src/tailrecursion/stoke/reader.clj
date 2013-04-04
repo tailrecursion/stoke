@@ -23,7 +23,7 @@
   (gobble-whitespace src)
   (when-let [s (and (= \" (first @src)) (core/read-string @src))] 
     (swap! src subs (+ 2 (count s)))
-    s))
+    (into #{} [s])))
 
 (defn read-scalar [src]
   (gobble-whitespace src)
@@ -83,6 +83,13 @@
   (read-string "{:foo  \n  \n bar}")
   (read-string "\n \"bar\"")
   (read-string "(1 2\n 3)")
-  (read-file "project.clj")
+
+  (binding [*print-meta* true]
+    (spit "out.stk" (pr-str (read-file "project.clj")))) 
+
+  (with-open [r (java.io.PushbackReader. (io/reader "out.stk"))]
+    (core/read r))
+  
+
   )
 
