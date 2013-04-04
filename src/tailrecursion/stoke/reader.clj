@@ -4,32 +4,61 @@
             [clojure.string  :as string])
   (:refer-clojure :exclude [read read-string]))
 
-(def delims       {\[ \] \{ \} \( \)})
-(def macros       #{"^" "#" "#=" "#_" "#'" "'" "`" "~" "~@"})
-(def macro?       #(and (symbol? %) (contains? macros (name %))))
+(def delims         {\[ \] \{ \} \( \)})
+(def macros         #{"^" "#" "#=" "#_" "#'" "'" "`" "~" "~@" "@"})
+(def macro?         #(and (symbol? %) (contains? macros (name %))))
+
+(def re-scalar      #"^[^\s,\"\[\](){}]+")
+(def re-linebreak   #"^\n\s*\n")
+(def re-whitespace  #"^[\s,&&[^\n]]+")
+(def re-macro       #"^(?:#'|#=|#_|\^|#|'|`|@|~@|~)")
+(def re-re          #"^#\"")
 
 (defn gobble-whitespace [src]
-  (swap! src string/replace-first #"^[\s,&&[^\n]]+" "")
+  (swap! src string/replace-first re-whitespace "")
   nil)
+
+(defn by-pattern [p f src]
+  (gobble-whitespace src)
+  (when-let [s (re-find p @src)]
+    (swap! src subs (count s))
+    (f s)))
 
 (defn read-break [src]
   (gobble-whitespace src)
   (if (= \newline (first @src))
-    (if (not= @src (swap! src string/replace-first #"^\n\s*\n" ""))
+    (if (not= @src (swap! src string/replace-first re-linebreak ""))
       :break
       (do (swap! src subs 1) nil))))
 
+(defn read-re [src]
+  (gobble-whitespace src)
+  (try
+    (when-let [p (and (re-find re-re @src) (core/read-string @src))]
+      (swap! src subs (count (pr-str p))) 
+      (with-meta #{(.pattern p)} {:prefix (symbol "#")}))
+    (catch Throwable e
+      (throw (Exception. (str "Unreadable regex: " @src) e)))))
+
 (defn read-str [src]
   (gobble-whitespace src)
-  (when-let [s (and (= \" (first @src)) (core/read-string @src))] 
-    (swap! src subs (+ 2 (count s)))
-    (into #{} [s])))
+  (try 
+    (when-let [s (and (= \" (first @src)) (core/read-string @src))] 
+      (swap! src subs (count (pr-str s)))
+      (into #{} [s]))
+    (catch Throwable e
+      (throw (Exception. (str "Unreadable string: " @src) e)))))
+
+(defn read-macro [src]
+  (by-pattern re-macro symbol src))
+
+(defn read-char [src]
+  (when-let [s (and (= \\ (first @src)) (apply str (take 2 @src)))] 
+    (swap! src subs 2)
+    (symbol s)))
 
 (defn read-scalar [src]
-  (gobble-whitespace src)
-  (when-let [s (re-find #"^[^\s,\"\[\](){}]+" @src)]
-    (swap! src subs (count s))
-    (symbol s)))
+  (by-pattern re-scalar symbol src))
   
 (declare read)
 
@@ -48,7 +77,10 @@
           (recur (conj items nxt) (read src)))))))
 
 (defn read [src]
-  (or (read-break src)
+  (or (read-re src)
+      (read-macro src)
+      (read-break src)
+      (read-char src)
       (read-str src)
       (read-sequence src)
       (read-scalar src)))
@@ -57,7 +89,7 @@
   (if (vector? forms)
     (let [collapse (fn [xs x]
                      (let [x (collapse-prefix x)]
-                       (if (and (macro? (peek xs)) (coll? x))
+                       (if (macro? (peek xs))
                          (conj (pop xs) (vary-meta x merge {:prefix (peek xs)})) 
                          (conj xs x))))]
       (with-meta (reduce collapse [] forms) (meta forms)))
