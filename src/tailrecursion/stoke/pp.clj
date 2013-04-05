@@ -5,38 +5,7 @@
 
 (declare pretty)
 
-(defn node
-  ([tag]
-   (node nil))
-  ([tag indent]
-   (node tag indent []))
-  ([tag indent children] 
-   (fn [& args]
-     (let [render #(if (fn? %) (% ::render) %)]
-       (if (= ::render (first args))
-         (if (vector? children)
-           (if indent
-             `[~tag ~indent ~@(map render children)]
-             `[~tag ~@(map render children)])
-           tag) 
-         (if (vector? children)
-           (node tag indent (into children args))
-           (throw (Exception. "Can't append children to leaf node."))))))))
-
-(defn leaf [tag] (node tag nil nil))
-
-(defn branch
-  ([tag] (branch tag nil))
-  ([tag indent] (node tag indent [])))
-
-(def text   (branch :text))
-(def pass   (branch :pass))
-(def span   (branch :span))
-(def line   (leaf   :line))
-(def break  (leaf   :break))
-(def group  (branch :group))
-(def nest   (branch :nest 2))
-(def align  (branch :align))
+(def ^:dynamic post-process (fn [x y] y))
 
 (def delims   #(:delims (meta %)))
 (def prefix   #(:prefix (meta %)))
@@ -116,15 +85,18 @@
           props `[:group [:nest 2 ~@(drop 1 (by-pairs (subvec x 3)))]]]
       (pp-coll x head :line props))))
 
+(defn post [src node] (if node (post-process src node) node))
+
 (defmulti pretty type*)
 
 (defmethod pretty :spliced [x]
-  `[:nest 0 ~@(mapcat #(if (= :break %) [%] [% :line]) (map pretty x))])
+  (let [exprs (mapcat #(if (= :break %) [%] [% :line]) (map pretty x))]
+    (post x `[:nest 0 ~@exprs])))
 
 (defmethod pretty :sym [x]
   (let [p (prefix x)
         d (delims x)]
-    [:text (apply str p (first d) x (second d))]))
+    (post x [:text (apply str p (first d) x (second d))])))
 
 (defmethod pretty :str [x]
   (let [p (prefix x)
@@ -133,14 +105,14 @@
             (if (= "#" (str p))
               (subs (pr-str (re-pattern y)) 1)
               (pr-str y)))]
-    [:text (str p (first d)) s (str (second d))]))
+    (post x [:text (str p (first d)) s (str (second d))])))
 
 (defmethod pretty :set [x]
-  (pp-coll x `[:align ~@(cat (map pretty x))]))
+  (post x (pp-coll x `[:align ~@(cat (map pretty x))])))
 
-(defmethod pretty :key [x] x)
-(defmethod pretty :seq [x] (pp-seq x))
-(defmethod pretty :map [x] (pp-coll x (by-pairs x)))
+(defmethod pretty :key [x] (post x x))
+(defmethod pretty :seq [x] (post x (pp-seq x)))
+(defmethod pretty :map [x] (post x (pp-coll x (by-pairs x))))
 (defmethod pretty :vec [x] ((get-method pretty :set) x))
 (defmethod pretty :vec-pairs [x] ((get-method pretty :map) x))
 

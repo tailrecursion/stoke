@@ -14,9 +14,16 @@ FIXME: Use this for project-level plugins:
 
 Put `[stoked "0.1.0-SNAPSHOT"]` into the `:plugins` vector of your project.clj.
 
-FIXME: and add an example usage that actually makes sense:
-
-    $ lein stoked
+    user=> (require 'tailrecursion.stoke.edit)
+    nil
+    user=> (in-ns 'tailrecursion.stoke.edit)
+    #<Namespace tailrecursion.stoke.edit>
+    user=> (read-file "project.clj")
+    ...
+    user=> (down)
+    ...
+    user=> (right 4)
+    ...
 
 ## License
 

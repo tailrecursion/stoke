@@ -1,7 +1,8 @@
 (ns tailrecursion.stoke.reader
   (:require [clojure.java.io :as io]
             [clojure.core    :as core]
-            [clojure.string  :as string])
+            [clojure.string  :as string]
+            [clojure.zip     :as zip])
   (:refer-clojure :exclude [read read-string]))
 
 (def delims         {\[ \] \{ \} \( \)})
@@ -109,6 +110,9 @@
 (defn read-string
   [s]
   (read (atom s)))
+
+(defn zipper [forms]
+  (zip/zipper vector? seq into forms))
 
 (comment
 
