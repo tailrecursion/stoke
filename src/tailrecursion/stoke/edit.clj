@@ -30,19 +30,6 @@
      (dotimes [i n] (swap!* f))
      (pprint))))
 
-(def o      read-file)
-(def p      pprint)
-(def k      (move zip/up))
-(def j      (move zip/down))
-(def h      (move zip/left))
-(def l      (move zip/right))
-(def d      (move zip/remove))
-
-(defmacro c [form]
-  `(do
-     (swap!* zip/replace (r/read-string (pr-str '~form)))
-     (pprint)))
-
 ;;; In order for this to work without having to press enter, you must
 ;;; set stty before running the JVM:
 ;; stty -icanon min 1

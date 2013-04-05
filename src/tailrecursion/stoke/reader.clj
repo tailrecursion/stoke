@@ -19,6 +19,16 @@
   (swap! src string/replace-first re-whitespace "")
   nil)
 
+(defn raw-read-str [s]
+  (if (= \" (first s))
+    (loop [out "\"" in (subs s 1)]
+      (let [[p q & r] in]
+        (cond
+          (= \" p)          (str out p)
+          (= [\\ \"] [p q]) (recur (str out p q) (subs in 2))
+          p                 (recur (str out p) (subs in 1))
+          :else             (throw (Exception. "Unreadable string: " in)))))))
+
 (defn by-pattern [p f src]
   (gobble-whitespace src)
   (when-let [s (re-find p @src)]
@@ -34,21 +44,15 @@
 
 (defn read-re [src]
   (gobble-whitespace src)
-  (try
-    (when-let [p (and (re-find re-re @src) (core/read-string @src))]
-      (swap! src subs (count (pr-str p))) 
-      (with-meta #{(.pattern p)} {:prefix (symbol "#")}))
-    (catch Throwable e
-      (throw (Exception. (str "Unreadable regex: " @src) e)))))
+  (when-let [p (and (re-find re-re @src) (raw-read-str (subs @src 1)))]
+    (swap! src subs (inc (count p)))
+    (with-meta (into #{} [p]) {:prefix (symbol "#")})))
 
 (defn read-str [src]
   (gobble-whitespace src)
-  (try 
-    (when-let [s (and (= \" (first @src)) (core/read-string @src))] 
-      (swap! src subs (count (pr-str s)))
-      (into #{} [s]))
-    (catch Throwable e
-      (throw (Exception. (str "Unreadable string: " @src) e)))))
+  (when-let [s (and (= \" (first @src)) (raw-read-str @src))] 
+    (swap! src subs (count s))
+    (into #{} [s])))
 
 (defn read-macro [src]
   (by-pattern re-macro symbol src))

@@ -96,16 +96,13 @@
 (defmethod pretty :sym [x]
   (let [p (prefix x)
         d (delims x)]
-    (post x [:text (apply str p (first d) x (second d))])))
+    (post x [:text (str p (first d) x (second d))])))
 
 (defmethod pretty :str [x]
   (let [p (prefix x)
         d (delims x)
-        s (let [y (first x)]
-            (if (= "#" (str p))
-              (subs (pr-str (re-pattern y)) 1)
-              (pr-str y)))]
-    (post x [:text (str p (first d)) s (str (second d))])))
+        s (first x)]
+    (post x [:text (str p (first d) s (second d))])))
 
 (defmethod pretty :set [x]
   (post x (pp-coll x `[:align ~@(cat (map pretty x))])))
