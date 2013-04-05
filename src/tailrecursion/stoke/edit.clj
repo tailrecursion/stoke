@@ -4,6 +4,7 @@
     [tailrecursion.stoke.reader :as r]
     [tailrecursion.stoke.pp     :as pp]))
 
+(def undos (atom []))
 (def point (atom "" :validator (complement nil?)))
 
 (defn- pprint []
@@ -40,5 +41,5 @@
 
 (defmacro c [form]
   `(do
-     (swap!* zip/replace (r/read-string (str '~form)))
+     (swap!* zip/replace (r/read-string (pr-str '~form)))
      (pprint)))
