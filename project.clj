@@ -6,5 +6,6 @@
   :eval-in-leiningen true
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [clojure-lanterna "0.9.3"]
-                 [fipp "0.1.0-SNAPSHOT"]])
+                 [fipp "0.1.0-SNAPSHOT"]]
+  :main tailrecursion.stoke.edit)
 

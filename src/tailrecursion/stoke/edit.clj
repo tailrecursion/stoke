@@ -16,8 +16,7 @@
       (pp/pprint (zip/root @point)))))
 
 (defn- read-file [f]
-  (reset! point (zip/down (r/zipper (r/read-file f))))
-  (pprint))
+  (reset! point (zip/down (r/zipper (r/read-file f)))))
 
 (defn- swap!* [f & args]
   (try
@@ -43,3 +42,23 @@
   `(do
      (swap!* zip/replace (r/read-string (pr-str '~form)))
      (pprint)))
+
+;;; In order for this to work without having to press enter, you must
+;;; set stty before running the JVM:
+;; stty -icanon min 1
+(defn -main [file]
+  (read-file file)
+  (loop []
+    (pprint)
+    (let [c (char (.read System/in))]
+      (when-not (= \q c)
+        (case c
+          \p (pprint)
+          \k ((move zip/up))
+          \j ((move zip/down))
+          \h ((move zip/left))
+          \l ((move zip/right))
+          \d ((move zip/remove))
+          \c (swap!* zip/replace (r/read-string (pr-str (read))))
+          nil)
+        (recur)))))
