@@ -7,7 +7,7 @@
 (defn meta-zip [root]
   (let [branch?   #(instance? clojure.lang.IMeta %)
         children  #(get (meta %) ::children)
-        make-node #(with-meta %1 {::children %2})]
+        make-node #(vary-meta %1 assoc ::children %2)]
     (zip/zipper branch? children make-node root)))
 
 (let [ok? #(not (nil? (zip/node %)))]
