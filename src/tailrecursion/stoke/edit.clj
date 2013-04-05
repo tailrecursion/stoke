@@ -5,7 +5,7 @@
     [tailrecursion.stoke.pp     :as pp]))
 
 (def mode  (atom :normal))
-(def point (atom nil))
+(def point (atom "" :validator (complement nil?)))
 
 (defn pprint []
   (let [post #(if (identical? %1 (zip/node @point))
@@ -18,18 +18,16 @@
   (reset! point (zip/down (r/zipper (r/read-file f))))
   (pprint))
 
-(defn safe-swap! [atm f & args]
-  ((fnil reset! atm @atm) atm (apply f @atm args)))
-
 (defn move [f]
   (fn moving
     ([] (moving 1))
     ([n]
-     (dotimes [i n] (safe-swap! point f)) 
+     (dotimes [i n] (try (swap! point f) (catch Throwable e))) 
      (pprint))))
 
 (def up     (move zip/up))
 (def down   (move zip/down))
 (def left   (move zip/left))
 (def right  (move zip/right))
+(def rm     (move zip/remove))
 
