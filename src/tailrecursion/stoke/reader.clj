@@ -112,7 +112,7 @@
   (read (atom s)))
 
 (defn zipper [forms]
-  (zip/zipper vector? seq into forms))
+  (zip/zipper vector? seq #(with-meta (vec %2) (meta %1)) forms))
 
 (comment
 

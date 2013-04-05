@@ -22,7 +22,10 @@
   (fn moving
     ([] (moving 1))
     ([n]
-     (dotimes [i n] (try (swap! point f) (catch Throwable e))) 
+     (dotimes [i n]
+       (try
+         (swap! point f)
+         (catch Throwable e))) 
      (pprint))))
 
 (def up     (move zip/up))
@@ -31,3 +34,8 @@
 (def right  (move zip/right))
 (def rm     (move zip/remove))
 
+(defn replace [s]
+  (try
+    (swap! point zip/replace (r/read-string s))
+    (catch Throwable e))
+  (pprint))
