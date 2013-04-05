@@ -4,38 +4,40 @@
     [tailrecursion.stoke.reader :as r]
     [tailrecursion.stoke.pp     :as pp]))
 
-(def mode  (atom :normal))
 (def point (atom "" :validator (complement nil?)))
 
-(defn pprint []
+(defn- pprint []
   (let [post #(if (identical? %1 (zip/node @point))
                 [:span [:pass "\033[38;5;154m"] %2 [:pass "\033[0m"]]
                 %2)]
     (binding [pp/post-process post]
       (pp/pprint (zip/root @point)))))
 
-(defn read-file [f]
+(defn- read-file [f]
   (reset! point (zip/down (r/zipper (r/read-file f))))
   (pprint))
 
-(defn move [f]
+(defn- swap!* [f & args]
+  (try
+    (apply swap! point f args)
+    (catch Throwable e)))
+
+(defn- move [f]
   (fn moving
     ([] (moving 1))
     ([n]
-     (dotimes [i n]
-       (try
-         (swap! point f)
-         (catch Throwable e))) 
+     (dotimes [i n] (swap!* f))
      (pprint))))
 
-(def up     (move zip/up))
-(def down   (move zip/down))
-(def left   (move zip/left))
-(def right  (move zip/right))
-(def rm     (move zip/remove))
+(def o      read-file)
+(def p      pprint)
+(def k      (move zip/up))
+(def j      (move zip/down))
+(def h      (move zip/left))
+(def l      (move zip/right))
+(def d      (move zip/remove))
 
-(defn replace [s]
-  (try
-    (swap! point zip/replace (r/read-string s))
-    (catch Throwable e))
-  (pprint))
+(defmacro c [form]
+  `(do
+     (swap!* zip/replace (r/read-string (str '~form)))
+     (pprint)))
