@@ -7,6 +7,7 @@
 (def point (atom "" :validator (complement nil?)))
 
 (defn- pprint []
+  (print "\033[2J")
   (let [post #(if (identical? %1 (zip/node @point))
                 [:span [:pass "\033[38;5;154m"] %2 [:pass "\033[0m"]]
                 %2)]
