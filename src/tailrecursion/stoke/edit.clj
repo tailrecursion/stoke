@@ -4,31 +4,46 @@
     [tailrecursion.stoke.reader :as r]
     [tailrecursion.stoke.pp     :as pp]))
 
-(def undos (atom []))
-(def point (atom "" :validator (complement nil?)))
+(defn meta-zip [root]
+  (let [branch?   #(instance? clojure.lang.IMeta %)
+        children  #(get (meta %) ::children)
+        make-node #(with-meta %1 {::children %2})]
+    (zip/zipper branch? children make-node root)))
 
-(defn- pprint []
+(let [ok? #(not (nil? (zip/node %)))]
+  (def point (atom (meta-zip (zip/vector-zip [])) :validator ok?)))
+
+(defn pprint []
   (print "\033[2J")
-  (let [post #(if (identical? %1 (zip/node @point))
+  (let [post #(if (identical? %1 (zip/node (zip/node @point)))
                 [:span [:pass "\033[38;5;154m"] %2 [:pass "\033[0m"]]
                 %2)]
     (binding [pp/post-process post]
-      (pp/pprint (zip/root @point)))))
+      (pp/pprint (zip/root (zip/node @point))))))
 
-(defn- read-file [f]
-  (reset! point (zip/down (r/zipper (r/read-file f)))))
+(defn add-history [x]
+  (swap! point #(zip/down (zip/append-child % x))))
 
-(defn- swap!* [f & args]
+(defn read-file [f]
+  (add-history (zip/down (r/zipper (r/read-file f)))))
+
+(defn swap!* [point f & args]
   (try
-    (apply swap! point f args)
+    (let [prv (zip/root (zip/node @point))
+          p   (apply f (zip/node @point) args)
+          nxt (zip/root p)]
+      (if (= prv nxt)
+        (swap! point zip/replace p)
+        (add-history p)))
     (catch Throwable e)))
 
-(defn- move [f]
-  (fn moving
-    ([] (moving 1))
-    ([n]
-     (dotimes [i n] (swap!* f))
-     (pprint))))
+(defn edit [f & args]
+  (apply swap!* point f args)
+  (pprint))
+
+(defn undo [f & args]
+  (apply swap! point f args)
+  (pprint))
 
 ;;; In order for this to work without having to press enter, you must
 ;;; set stty before running the JVM:
@@ -41,11 +56,13 @@
       (when-not (= \q c)
         (case c
           \p (pprint)
-          \k ((move zip/up))
-          \j ((move zip/down))
-          \h ((move zip/left))
-          \l ((move zip/right))
-          \d ((move zip/remove))
-          \c (swap!* zip/replace (r/read-string (pr-str (read))))
+          \k (edit zip/up)
+          \j (edit zip/down)
+          \h (edit zip/left)
+          \l (edit zip/right)
+          \d (edit zip/remove)
+          \c (edit zip/replace (r/read-string (pr-str (read))))
+          \u (undo zip/up)
+          \r (undo zip/down)
           nil)
         (recur)))))
