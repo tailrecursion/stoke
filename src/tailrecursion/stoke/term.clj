@@ -27,7 +27,7 @@
 
 (defn upmost            [z]   (loop [loc z] (if-let [p (zip/up loc)] p loc)))
 (defn set-mark          [z]   (zip/edit z vary-meta assoc ::mark true))
-(defn get-mark          [z]   (loop [loc (upmost z)]
+(defn get-mark          [z]   (loop [loc (r/zipper (zip/root z))]
                                 (if (or (::mark (meta (zip/node loc)))
                                         (zip/end? loc)) 
                                   (zip/edit loc vary-meta dissoc ::mark) 
