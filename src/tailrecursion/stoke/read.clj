@@ -1,4 +1,4 @@
-(ns tailrecursion.stoke.reader
+(ns tailrecursion.stoke.read
   (:require [clojure.java.io :as io]
             [clojure.core    :as core]
             [clojure.string  :as string]
@@ -117,19 +117,3 @@
 
 (defn zipper [forms]
   (zip/zipper vector? seq #(with-meta (vec %2) (meta %1)) forms))
-
-(comment
-
-  (read-string "{:foo  \n  \n bar}")
-  (read-string "\n \"bar\"")
-  (read-string "(1 2\n 3)")
-
-  (binding [*print-meta* true]
-    (spit "out.stk" (pr-str (read-file "project.clj")))) 
-
-  (with-open [r (java.io.PushbackReader. (io/reader "out.stk"))]
-    (core/read r))
-  
-
-  )
-

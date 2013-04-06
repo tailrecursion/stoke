@@ -2,8 +2,8 @@
   (:require
     [clojure.zip                :as zip]
     [tailrecursion.stoke.edit   :as e]
-    [tailrecursion.stoke.reader :as r]
-    [tailrecursion.stoke.pp     :as pp]))
+    [tailrecursion.stoke.read   :as r]
+    [tailrecursion.stoke.print  :as pp]))
 
 (defn pprint []
   (print "\033[2J")

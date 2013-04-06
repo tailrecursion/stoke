@@ -1,7 +1,7 @@
-(ns tailrecursion.stoke.pp
+(ns tailrecursion.stoke.print
   (:require
-    [bbloom.fipp.printer        :as p :refer [defprinter]]
-    [tailrecursion.stoke.reader :as r]))
+    [bbloom.fipp.printer      :as p :refer [defprinter]]
+    [tailrecursion.stoke.read :as r]))
 
 (declare pretty)
 

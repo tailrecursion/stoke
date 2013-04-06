@@ -1,7 +1,7 @@
 (ns tailrecursion.stoke.edit
   (:require
-    [clojure.zip                :as zip]
-    [tailrecursion.stoke.reader :as r]))
+    [clojure.zip              :as zip]
+    [tailrecursion.stoke.read :as r]))
 
 (defn meta-zip [root]
   (let [branch?   #(instance? clojure.lang.IMeta %)
