@@ -1,14 +1,18 @@
 (ns tailrecursion.stoke.term
   (:require
-    [clojure.zip                      :as zip]
-    [tailrecursion.stoke.edit         :as e]
-    [tailrecursion.stoke.read         :as r]
-    [tailrecursion.stoke.print        :as pp]))
+    [clojure.zip                :as zip]
+    [clojure.string             :as string]
+    [clojure.java.shell         :as shell]
+    [tailrecursion.stoke.edit   :as e]
+    [tailrecursion.stoke.read   :as r]
+    [tailrecursion.stoke.print  :as pp]))
 
 (declare key-bindings pprint)
 
-(def mode (atom :normal))
-(def mult (atom nil))
+(def lines  (Integer/parseInt (System/getenv "LINES"))) 
+(def cols   (Integer/parseInt (System/getenv "COLUMNS"))) 
+(def mode   (atom :normal))
+(def mult   (atom nil))
 
 (defn update-mode! [x]
   (when (get @key-bindings x)
@@ -74,7 +78,9 @@
           }
          :delete
          {:dispatch #(if (Character/isDigit %) (update-mult! %) %)
-          \d        (fn [_] (mult-cmd e/edit remove-parent))
+          \d        (fn [_] (do
+                              (mult-cmd e/edit remove-parent)
+                              (update-mode! :normal)))
           }
          :undo
          {:dispatch #(if (Character/isDigit %) (update-mult! %) %)  
@@ -87,17 +93,34 @@
           \n        (fn [_] (mult-cmd e/undo zip/next))
           \p        (fn [_] (mult-cmd e/undo zip/prev))}})) 
 
+(defn status []
+  (println (format "[%s] [%s]" (str @mode) @e/file)))
+
 (defn pprint []
   (print "\033[2J\r")
-  (let [post #(if (identical? %1 (zip/node (zip/node @@e/point)))
-                [:span [:pass "\033[38;5;154m"] %2 [:pass "\033[0m"]]
-                %2)]
-    (binding [pp/post-process post]
-      (pp/pprint (zip/root (zip/node @@e/point))))))
+  (let [colr  (fn [x] [:span [:pass "\033[38;5;154m\f"] x [:pass "\033[0m"]]) 
+        pnt   (zip/node (zip/node @@e/point))
+        post  #(if (identical? %1 pnt) (colr %2) %2)
+        src   (with-out-str
+                (binding [pp/post-process post]
+                  (pp/pprint (zip/root (zip/node @@e/point)))))
+        [x y] (->> (string/split src #"\n")
+                (split-with #(not (re-find #"\f" %))))
+        nx    (count x)
+        ny    (count y)
+        xtra  (/ (- lines 2 (+ nx ny)) 2)
+        pad   "~"
+        padt  (repeat (int (Math/floor xtra)) pad)
+        padb  (repeat (int (Math/ceil xtra)) pad)
+        padx  (repeat (- ny nx) pad)
+        pady  (repeat (- nx ny) pad)
+        win   (string/join "\n" (concat padt padx x y pady padb))]
+    (println win)
+    (status)))
 
 (defn -main []
   (loop []
-    (pprint)
+    (pprint) 
     (let [c (char (.read System/in))]
       (if (= c (char 27))
         (do (update-mode! :normal) (recur))
