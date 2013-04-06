@@ -114,8 +114,11 @@
         padb  (repeat (int (Math/ceil xtra)) pad)
         padx  (repeat (- ny nx) pad)
         pady  (repeat (- nx ny) pad)
-        win   (string/join "\n" (concat padt padx x y pady padb))]
-    (println win)
+        all   (concat padt padx x y pady padb)
+        nw    (count all)
+        over  (int (Math/floor (/ (- nw lines) 2)))
+        win   (->> (if (< 0 over) (drop over all) all) (take lines))]
+    (println (string/join "\n" win))
     (status)))
 
 (defn -main []
