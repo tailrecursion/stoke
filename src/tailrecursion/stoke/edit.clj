@@ -27,7 +27,7 @@
 (defn read-file [f]
   (add-history (zip/down (r/zipper (r/read-file f)))))
 
-(defn swap!* [point f & args]
+(defn edit [f & args]
   (try
     (let [prv (zip/root (zip/node @point))
           p   (apply f (zip/node @point) args)
@@ -35,10 +35,7 @@
       (if (= prv nxt)
         (swap! point zip/replace p)
         (add-history p)))
-    (catch Throwable e)))
-
-(defn edit [f & args]
-  (apply swap!* point f args)
+    (catch Throwable e))
   (pprint))
 
 (defn undo [f & args]
