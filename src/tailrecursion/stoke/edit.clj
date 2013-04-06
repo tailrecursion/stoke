@@ -22,7 +22,7 @@
       (pp/pprint (zip/root (zip/node @point))))))
 
 (defn add-history [x]
-  (swap! point #(zip/down (zip/append-child % x))))
+  (swap! point #(zip/rightmost (zip/down (zip/append-child % x)))))
 
 (defn read-file [f]
   (add-history (zip/down (r/zipper (r/read-file f)))))
@@ -66,5 +66,7 @@
           \c (edit zip/replace (r/read-string (pr-str (read))))
           \u (undo zip/up)
           \r (undo zip/down)
+          \t (undo zip/left)
+          \y (undo zip/right)
           nil)
         (recur)))))
