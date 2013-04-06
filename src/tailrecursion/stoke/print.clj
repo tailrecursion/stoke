@@ -20,14 +20,14 @@
   (let [p (str (prefix x)) 
         d (str (first (delims x)))]
     (cond
-      (set? x)      :str
-      (keyword? x)  :key
-      (vector? x)   (case d
-                      "{" (if (= "#" p) :set :map)
-                      "(" :seq
-                      "[" :vec
-                      :spliced)
-      :else         :sym)))
+      (set? x)    :str
+      (map? x)    :key
+      (vector? x) (case d
+                    "{" (if (= "#" p) :set :map)
+                    "(" :seq
+                    "[" :vec
+                    :spliced)
+      :else       :sym)))
 
 (defn by-pairs [x]
   (let [add #(conj %1 `[:group ~@(cat (map pretty (keep identity %2)))])]
@@ -90,7 +90,7 @@
 (defmulti pretty type*)
 
 (defmethod pretty :spliced [x]
-  (let [exprs (mapcat #(if (= :break %) [%] [% :line]) (map pretty x))]
+  (let [exprs (mapcat #(if (map? %) [(:key %)] [% :line]) (map pretty x))]
     (post x `[:nest 0 ~@exprs])))
 
 (defmethod pretty :sym [x]
@@ -107,7 +107,7 @@
 (defmethod pretty :set [x]
   (post x (pp-coll x `[:align ~@(cat (map pretty x))])))
 
-(defmethod pretty :key [x] (post x x))
+(defmethod pretty :key [x] (post x (:key x)))
 (defmethod pretty :seq [x] (post x (pp-seq x)))
 (defmethod pretty :map [x] (post x (pp-coll x (by-pairs x))))
 (defmethod pretty :vec [x] ((get-method pretty :set) x))

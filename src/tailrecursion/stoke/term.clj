@@ -69,7 +69,7 @@
           \I        (fn [_] (e/edit insert-leftmost (input)))
           \a        (fn [_] (e/edit insert-right (input)))
           \A        (fn [_] (e/edit insert-rightmost (input)))
-          \o        (fn [_] (e/edit insert-right :break))
+          \o        (fn [_] (e/edit insert-right (r/read-string "\n\n")))
           \?        (fn [_]
                       (do
                         (binding [*print-meta* true]
@@ -98,7 +98,9 @@
 
 (defn pprint []
   (print "\033[2J\r")
-  (let [colr  (fn [x] [:span [:pass "\033[38;5;154m\f"] x [:pass "\033[0m"]]) 
+  (let [colr  (fn [x]
+                (let [c (if (= x :break) \u2588 "")]
+                  [:span [:pass (str "\033[38;5;154m\f" c)] x [:pass "\033[0m"]])) 
         pnt   (zip/node (zip/node @@e/point))
         post  #(if (identical? %1 pnt) (colr %2) %2)
         src   (with-out-str

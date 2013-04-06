@@ -40,7 +40,7 @@
   (gobble-whitespace src)
   (if (= \newline (first @src))
     (if (not= @src (swap! src string/replace-first re-linebreak ""))
-      :break
+      {:key :break :id (str (gensym))} 
       (do (swap! src subs 1) nil))))
 
 (defn read-re [src]
