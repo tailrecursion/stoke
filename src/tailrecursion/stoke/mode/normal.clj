@@ -17,6 +17,7 @@
   (swap! mult #(let [i (Character/digit c 10)] 
                  (if (not %) i (+ (* 10 %) i)))))
 
+(defmethod normal-cmd :default [_] nil)
 (defmethod normal-cmd \q [_] :tailrecursion.stoke.term/quit)
 (defmethod normal-cmd \h [_] (edit zip/left))
 (defmethod normal-cmd \H [_] (edit zip/leftmost))
