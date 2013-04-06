@@ -5,22 +5,25 @@
     [tailrecursion.stoke.read   :as r]
     [tailrecursion.stoke.print  :as pp]))
 
+(def cls #(print "\033[2J\r"))
+
 (defn pprint []
-  (print "\033[2J")
-  (let [post #(if (identical? %1 (zip/node (zip/node @e/point)))
+  (cls)
+  (let [post #(if (identical? %1 (zip/node (zip/node @@e/point)))
                 [:span [:pass "\033[38;5;154m"] %2 [:pass "\033[0m"]]
                 %2)]
     (binding [pp/post-process post]
-      (pp/pprint (zip/root (zip/node @e/point))))))
+      (pp/pprint (zip/root (zip/node @@e/point))))))
 
-(defn -main [file]
-  (e/read-file file)
+(defn -main []
   (loop []
     (pprint)
     (let [c (char (.read System/in))]
       (when-not (= \q c)
         (case c
           \p (pprint)
+          \g (do (cls) (println "editing: " @e/file) (.read System/in)) 
+          \e (e/read-file (str (read)))
           \k (e/edit zip/up)
           \j (e/edit zip/down)
           \h (e/edit zip/left)
