@@ -1,8 +1,9 @@
 (ns tailrecursion.stoke.read
-  (:require [clojure.java.io :as io]
-            [clojure.core    :as core]
-            [clojure.string  :as string]
-            [clojure.zip     :as zip])
+  (:require
+    [clojure.java.io :as io]
+    [clojure.core    :as core]
+    [clojure.string  :as string]
+    [clojure.zip     :as zip])
   (:refer-clojure :exclude [read read-string]))
 
 (def delims         {\[ \] \{ \} \( \)})
