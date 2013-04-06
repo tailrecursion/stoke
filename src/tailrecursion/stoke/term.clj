@@ -2,6 +2,7 @@
   (:require
     [clojure.zip                      :as zip]
     [tailrecursion.stoke.edit         :as e]
+    [tailrecursion.stoke.read         :as r]
     [tailrecursion.stoke.print        :as pp]))
 
 (def mode (atom :normal))
@@ -16,6 +17,15 @@
   (dotimes [i (or @mult 1)] (apply g f args))
   (reset! mult nil))
 
+(defn input [] (r/read-string (pr-str (read))))
+
+(defn insert-left       [z x] (-> (zip/insert-left z x) zip/left))
+(defn insert-right      [z x] (-> (zip/insert-right z x) zip/right))
+(defn insert-rightmost  [z x] (-> (zip/up z) (zip/append-child x) zip/down zip/rightmost))
+(defn insert-leftmost   [z x] (-> (zip/up z) (zip/insert-child x) zip/down))
+(defn remove-parent     [z]   (-> (zip/up z) zip/remove))
+(defn remove-point      [z]   (-> (zip/remove z) zip/next))
+
 (def key-bindings
   (atom {:normal
          {:dispatch #(if (Character/isDigit %) (update-mult %) %) 
@@ -28,8 +38,17 @@
           \k        (fn [_] (mult-cmd e/edit zip/up))
           \n        (fn [_] (mult-cmd e/edit zip/next))
           \p        (fn [_] (mult-cmd e/edit zip/prev))
+          \x        (fn [_] (mult-cmd e/edit remove-point))
           \e        (fn [_] (e/read-file (str (read))))
-          \u        (fn [_] (reset! mode :undo))}
+          \u        (fn [_] (reset! mode :undo))
+          \c        (fn [_] (e/edit zip/replace (input)))
+          \i        (fn [_] (e/edit insert-left (input)))
+          \I        (fn [_] (e/edit insert-leftmost (input)))
+          \a        (fn [_] (e/edit insert-right (input)))
+          \A        (fn [_] (e/edit insert-rightmost (input)))
+          \o        (fn [_] (e/edit insert-right :break))
+          \D        (fn [_] (e/edit remove-parent))
+          }
          :undo
          {:dispatch #(if (Character/isDigit %) (update-mult %) %) 
           \h        (fn [_] (mult-cmd e/undo zip/left))
