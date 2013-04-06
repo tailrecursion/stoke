@@ -10,7 +10,7 @@
         make-node #(vary-meta %1 assoc ::children %2)]
     (zip/zipper branch? children make-node root)))
 
-(let [ok? #(not (nil? (zip/node %)))]
+(let [ok? #(not (or (nil? %) (nil? (zip/node %))))]
   (def point (atom (meta-zip (zip/vector-zip [])) :validator ok?)))
 
 (defn pprint []
@@ -42,7 +42,9 @@
   (pprint))
 
 (defn undo [f & args]
-  (apply swap! point f args)
+  (try
+    (apply swap! point f args)
+    (catch Throwable e)) 
   (pprint))
 
 ;;; In order for this to work without having to press enter, you must
