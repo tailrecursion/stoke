@@ -30,8 +30,8 @@
       :else         :sym)))
 
 (defn by-pairs [x]
-  (let [add #(conj %1 `[:group ~@(cat (map pretty %2))])]
-    `[:align ~@(->> (reduce add [] (partition 2 x)) cat)]))
+  (let [add #(conj %1 `[:group ~@(cat (map pretty (keep identity %2)))])]
+    `[:align ~@(cat (reduce add [] (partition 2 2 [nil] x)))]))
 
 (defn pp-coll
   [x & body]
