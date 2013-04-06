@@ -10,8 +10,9 @@
         make-node #(vary-meta %1 assoc ::children %2)]
     (zip/zipper branch? children make-node root)))
 
-(let [ok? #(not (or (nil? %) (nil? (zip/node %))))]
-  (def point (atom (meta-zip (zip/vector-zip [])) :validator ok?)))
+(let [ok?   #(not (or (nil? %) (nil? (zip/node %))))
+      init  (meta-zip (zip/vector-zip []))]
+  (def point (atom init :validator ok?)))
 
 (defn pprint []
   (print "\033[2J")
