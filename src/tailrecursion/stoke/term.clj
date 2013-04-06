@@ -107,6 +107,7 @@
                 (binding [pp/post-process post]
                   (pp/pprint (zip/root (zip/node @@e/point)))))
         [x y] (->> (string/split src #"\n")
+                (map-indexed #(format "%4d %s" (inc %1) %2))
                 (split-with #(not (re-find #"\f" %))))
         nx    (count x)
         ny    (count y)
@@ -118,9 +119,9 @@
         pady  (repeat (- nx ny) pad)
         all   (concat padt padx x y pady padb)
         nw    (count all)
-        over  (int (Math/floor (/ (- nw lines) 2)))
+        over  (int (Math/ceil (/ (- nw lines) 2)))
         win   (->> (if (< 0 over) (drop over all) all) (take lines))]
-    (println (string/join "\n" win))
+    (->> win (string/join "\n") println)
     (status)))
 
 (defn -main []
