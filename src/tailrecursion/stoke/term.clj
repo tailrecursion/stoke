@@ -31,10 +31,16 @@
 
 (defn input [] (r/read-string (pr-str (read))))
 
+(defn skip-break        [z f] (loop [loc (f z)]
+                                (if (and (map? (zip/node loc)) (f loc))
+                                  (recur (f loc))
+                                  loc)))
 (defn insert-left       [z x] (-> (zip/insert-left z x) zip/left))
 (defn insert-right      [z x] (-> (zip/insert-right z x) zip/right))
 (defn insert-rightmost  [z x] (-> (zip/up z) (zip/append-child x) zip/down zip/rightmost))
 (defn insert-leftmost   [z x] (-> (zip/up z) (zip/insert-child x) zip/down))
+(defn remove-left       [z]   (-> (u/set-mark z) zip/left zip/remove u/get-mark))
+(defn remove-right      [z]   (-> (u/set-mark z) zip/right zip/remove u/get-mark))
 (defn remove-parent     [z]   (-> (zip/up z) zip/remove))
 (defn remove-point      [z]   (cond
                                 (zip/right z)
@@ -50,9 +56,9 @@
           \q        (constantly :quit) 
           \u        (fn [_] (update-mode! :undo))
           \d        (fn [_] (update-mode! :delete))
-          \h        (fn [_] (mult-cmd e/edit zip/left))
+          \h        (fn [_] (mult-cmd e/edit skip-break zip/left))
           \^        (fn [_] (mult-cmd e/edit zip/leftmost))
-          \l        (fn [_] (mult-cmd e/edit zip/right))
+          \l        (fn [_] (mult-cmd e/edit skip-break zip/right))
           \$        (fn [_] (mult-cmd e/edit zip/rightmost))
           \j        (fn [_] (mult-cmd e/edit zip/down))
           \k        (fn [_] (mult-cmd e/edit zip/up))
@@ -77,6 +83,12 @@
          {:dispatch #(if (Character/isDigit %) (update-mult! %) %)
           \d        (fn [_] (do
                               (mult-cmd e/edit remove-parent)
+                              (update-mode! :normal)))
+          \h        (fn [_] (do
+                              (mult-cmd e/edit remove-left)
+                              (update-mode! :normal)))
+          \l        (fn [_] (do
+                              (mult-cmd e/edit remove-right)
                               (update-mode! :normal)))
           }
          :undo
