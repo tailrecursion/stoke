@@ -5,7 +5,9 @@
     [clojure.java.shell         :as shell]
     [tailrecursion.stoke.edit   :as e]
     [tailrecursion.stoke.read   :as r]
-    [tailrecursion.stoke.print  :as pp]))
+    [tailrecursion.stoke.print  :as pp]
+    [tailrecursion.stoke.util   :as u]
+    [tailrecursion.stoke.syntax :as s]))
 
 (declare key-bindings pprint)
 
@@ -29,12 +31,6 @@
 
 (defn input [] (r/read-string (pr-str (read))))
 
-(defn set-mark          [z]   (zip/edit z vary-meta assoc ::mark true))
-(defn get-mark          [z]   (loop [loc (r/zipper (zip/root z))]
-                                (if (or (::mark (meta (zip/node loc)))
-                                        (zip/end? loc)) 
-                                  (zip/edit loc vary-meta dissoc ::mark) 
-                                  (recur (zip/next loc)))))
 (defn insert-left       [z x] (-> (zip/insert-left z x) zip/left))
 (defn insert-right      [z x] (-> (zip/insert-right z x) zip/right))
 (defn insert-rightmost  [z x] (-> (zip/up z) (zip/append-child x) zip/down zip/rightmost))
@@ -42,9 +38,9 @@
 (defn remove-parent     [z]   (-> (zip/up z) zip/remove))
 (defn remove-point      [z]   (cond
                                 (zip/right z)
-                                (-> (zip/right z) set-mark zip/left zip/remove get-mark)
+                                (-> (zip/right z) u/set-mark zip/left zip/remove u/get-mark)
                                 (zip/left z)
-                                (-> (zip/left z) set-mark zip/right zip/remove get-mark)
+                                (-> (zip/left z) u/set-mark zip/right zip/remove u/get-mark)
                                 :else (zip/remove z)))
 
 (def key-bindings
@@ -55,16 +51,17 @@
           \u        (fn [_] (update-mode! :undo))
           \d        (fn [_] (update-mode! :delete))
           \h        (fn [_] (mult-cmd e/edit zip/left))
-          \H        (fn [_] (mult-cmd e/edit zip/leftmost))
+          \^        (fn [_] (mult-cmd e/edit zip/leftmost))
           \l        (fn [_] (mult-cmd e/edit zip/right))
-          \L        (fn [_] (mult-cmd e/edit zip/rightmost))
+          \$        (fn [_] (mult-cmd e/edit zip/rightmost))
           \j        (fn [_] (mult-cmd e/edit zip/down))
           \k        (fn [_] (mult-cmd e/edit zip/up))
-          \J        (fn [_] (mult-cmd e/edit zip/next))
-          \K        (fn [_] (mult-cmd e/edit zip/prev))
+          \L        (fn [_] (mult-cmd e/edit zip/next))
+          \H        (fn [_] (mult-cmd e/edit zip/prev))
           \x        (fn [_] (mult-cmd e/edit remove-point))
           \e        (fn [_] (e/read-file (str (read))))
           \c        (fn [_] (e/edit zip/replace (input)))
+          \C        (fn [_] (e/edit zip/insert-child (input)))
           \i        (fn [_] (e/edit insert-left (input)))
           \I        (fn [_] (e/edit insert-leftmost (input)))
           \a        (fn [_] (e/edit insert-right (input)))
@@ -93,8 +90,11 @@
           \n        (fn [_] (mult-cmd e/undo zip/next))
           \p        (fn [_] (mult-cmd e/undo zip/prev))}})) 
 
+(defn status-line [text]
+  (subs (apply str text (repeat cols "-")) 0 cols))
+
 (defn status []
-  (println (format "[%s] [%s]" (str @mode) @e/file)))
+  (println (status-line (format "[%s] [%s]" (str @mode) @e/file))))
 
 (defn pprint []
   (print "\033[2J\r")
@@ -102,12 +102,16 @@
                 (let [c (if (= x :break) \u2588 "")]
                   [:span [:pass (str "\033[38;5;154m\f" c)] x [:pass "\033[0m"]])) 
         pnt   (zip/node (zip/node @@e/point))
-        post  #(if (identical? %1 pnt) (colr %2) %2)
+        post  #(if (::point (meta %1)) (colr %2) %2)
         src   (with-out-str
-                (binding [pp/post-process post]
-                  (pp/pprint (zip/root (zip/node @@e/point)))))
+                (-> (zip/node @@e/point)
+                  (zip/edit vary-meta assoc ::point true)
+                  (s/mark-point ::point)
+                  (s/colorize ::point 154)
+                  zip/root
+                  pp/pprint))
         [x y] (->> (string/split src #"\n")
-                (map-indexed #(format "%4d %s" (inc %1) %2))
+                (map-indexed #(format "\033[38;5;241m%4d\033[0m %s" (inc %1) %2))
                 (split-with #(not (re-find #"\f" %))))
         nx    (count x)
         ny    (count y)
@@ -124,7 +128,8 @@
     (->> win (string/join "\n") println)
     (status)))
 
-(defn -main []
+(defn -main [f]
+  (e/read-file f)
   (loop []
     (pprint) 
     (let [c (char (.read System/in))]

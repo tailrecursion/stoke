@@ -10,6 +10,11 @@
 (def delims   #(:delims (meta %)))
 (def prefix   #(:prefix (meta %)))
 
+(defn color [x s]
+  [[:pass (format "\033[38;5;%dm" (or (:color (meta x)) 7))]
+   [:text s] 
+   [:pass "\033[0m"]])
+
 (defn cat
   ([x]
    (cat :line x))
@@ -39,7 +44,7 @@
         d (delims x)
         l (str (first d))
         r (str (second d))]
-    `[:group ~(str p l) ~@body ~r]))
+    `[:group ~@(color x (str p l)) ~@body ~@(color x r)]))
 
 (defn pp-seq-leading
   ([n x]
@@ -48,7 +53,8 @@
    (if (< n (count x))
      (let [head `[:group ~@(cat (map pretty (take n x)))]
            body (cat (map pretty (drop n x)))]
-       (pp-coll x `[:nest 2 ~head ~br ~@body])))))
+       (pp-coll x `[:nest 2 ~head ~br ~@body]))
+     (pp-coll x `[:group "" ~@(cat (map pretty x))]))))
 
 (defmulti pp-seq #(str (first %)))
 
@@ -96,13 +102,13 @@
 (defmethod pretty :sym [x]
   (let [p (prefix x)
         d (delims x)]
-    (post x [:text (str p (first d) x (second d))])))
+    (post x `[:span ~@(color x (str p (first d) x (second d)))])))
 
 (defmethod pretty :str [x]
   (let [p (prefix x)
         d (delims x)
         s (first x)]
-    (post x [:text (str p (first d) s (second d))])))
+    (post x `[:span ~@(color x (str p (first d) s (second d)))])))
 
 (defmethod pretty :set [x]
   (post x (pp-coll x `[:align ~@(cat (map pretty x))])))

@@ -2,17 +2,12 @@
   (:require
     [clojure.java.io          :as io]
     [clojure.zip              :as zip]
-    [tailrecursion.stoke.read :as r]))
-
-(defn meta-zip [root]
-  (let [branch?   #(instance? clojure.lang.IMeta %)
-        children  #(get (meta %) ::children)
-        make-node #(vary-meta %1 assoc ::children %2)]
-    (zip/zipper branch? children make-node root)))
+    [tailrecursion.stoke.read :as r]
+    [tailrecursion.stoke.util :as u]))
 
 (defn make-point []
   (let [ok? #(not (or (nil? %) (nil? (zip/node %))))]
-    (atom (meta-zip (zip/vector-zip [])) :validator ok?))) 
+    (atom (u/meta-zip (zip/vector-zip [])) :validator ok?))) 
 
 (def point (atom (make-point) :validator (complement nil?)))
 (def file  (atom ""))
