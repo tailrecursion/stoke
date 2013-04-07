@@ -1,6 +1,7 @@
 (ns tailrecursion.stoke.syntax
   (:require
     [clojure.pprint             :refer [pprint]]
+    [clojure.string             :as string]
     [clojure.zip                :as zip]
     [tailrecursion.stoke.print  :as pp]
     [tailrecursion.stoke.read   :as r]
@@ -12,6 +13,7 @@
    :keyword   {:color 107 :bold 0}
    :symbol    {:color 103 :bold 0}
    :clj-core  {:color 103 :bold 1}
+   :java-cls  {:color 203 :bold 1}
    :string    {:color  14 :bold 0}
    })
 
@@ -30,9 +32,22 @@
 (defn set-color [x k]
   (vary-meta x merge (get colors k)))
 
+(defn package [x]
+  (try
+    (.. (type (resolve x)) getPackage getName)
+    (catch Throwable e)))
+
+(defn in-package? [x pkg]
+  (if-let [xpkg (package x)]
+    (let [x (string/split xpkg #"\.")
+          y (string/split pkg #"\.")
+          n (min (count x) (count y))]
+      (and (< 0 n) (= (take n x) (take n y))))))
+
 (defn keyword?* [x] (and (= :sym (pp/type* x)) (= \: (first (str x)))))
 (defn symbol?*  [x] (and (= :sym (pp/type* x)) (not= \: (first (str x)))))
-(defn core?*    [x] (and (= :sym (pp/type* x)) (try (resolve x) (catch Throwable e))))
+(defn core?*    [x] (and (= :sym (pp/type* x)) (in-package? x "clojure")))
+(defn java?*    [x] (and (= :sym (pp/type* x)) (in-package? x "java")))
 (defn string?*  [x] (= :str (pp/type* x)))
 
 (defn mark-syntax [src-zip]
@@ -40,6 +55,7 @@
     (let [n  (zip/node loc)
           k  (cond (keyword?* n)  :keyword
                    (core?* n)     :clj-core
+                   (java?* n)     :java-cls
                    (symbol?* n)   :symbol
                    (string?* n)   :string
                    :else          :default)
