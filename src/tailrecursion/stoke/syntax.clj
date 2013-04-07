@@ -14,8 +14,7 @@
    :symbol    {:color 103 :bold 0}
    :clj-core  {:color 103 :bold 1}
    :java-cls  {:color 203 :bold 1}
-   :string    {:color  14 :bold 0}
-   })
+   :string    {:color  14 :bold 0}})
 
 (defn cursor [x]
   (let [c (if (= x :break) (str \u2588) "")]

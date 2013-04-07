@@ -1,5 +1,6 @@
 (ns tailrecursion.stoke.term
   (:require
+    [clojure.java.io            :as io]
     [clojure.zip                :as zip]
     [clojure.string             :as string]
     [clojure.java.shell         :as shell]
@@ -35,9 +36,9 @@
 (defn input []
   (r/read-string (pr-str (read))))
 
-(defn modal [f & args]
-  (fn [_]
-    (apply f args) 
+(defn modal [f]
+  (fn [x]
+    (f x) 
     (set-mode! :normal)))
 
 (defn mode-setter [mode]
@@ -142,11 +143,17 @@
           \L        undo-next
           \H        undo-prev}}))
 
-(defn status-line [text]
-  (subs (apply str text (repeat cols "-")) 0 cols))
+(defn status-line [& texts]
+  (let [text (string/join
+               (str \u2500 \u2500)
+               (cons "" (map #(format " %s " %) texts)))
+        line (subs (apply str text (repeat cols (str \u2500))) 0 cols)] 
+    (str "\033[38;5;230m\033[1m" line "\033[0m")))
 
 (defn status []
-  (println (status-line (format "[%s] [%s]" (str @mode) @e/file))))
+  (let [mode (str @mode)
+        file (.getName (io/file @e/file))]
+    (println (status-line mode file))))
 
 (defn pprint []
   (print "\033[2J\r")

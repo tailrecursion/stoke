@@ -2,7 +2,7 @@
   (:require
     [clojure.zip :as zip]))
 
-(declare remove-children)
+(declare remove-leftmost-child)
 
 (defn meta-zip [root]
   (let [branch?   #(instance? clojure.lang.IMeta %)
@@ -79,7 +79,7 @@
   (-> (repeat-while zip/left remove-left) remove-point))
 
 (defn remove-siblings [z]
-  (-> (zip/up z) remove-children))
+  (-> (zip/up z) (repeat-while zip/down remove-leftmost-child)))
 
 (defn remove-leftmost-child [z]
   (-> (set-mark z) zip/down zip/remove get-mark))
