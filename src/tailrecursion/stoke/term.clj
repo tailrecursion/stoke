@@ -98,18 +98,18 @@
 
 (defn pprint []
   (print "\033[2J\r")
-  (let [colr  (fn [x]
-                (let [c (if (= x :break) \u2588 "")]
-                  [:span [:pass (str "\033[38;5;154m\f" c)] x [:pass "\033[0m"]])) 
+  (let [colr  (fn [x] [:span [:pass (s/cursor x)] x])
         pnt   (zip/node (zip/node @@e/point))
         post  #(if (::point (meta %1)) (colr %2) %2)
         src   (with-out-str
-                (-> (zip/node @@e/point)
-                  (zip/edit vary-meta assoc ::point true)
-                  (s/mark-point ::point)
-                  (s/colorize ::point 154)
-                  zip/root
-                  pp/pprint))
+                (binding [pp/post-process post]
+                  (-> (zip/node @@e/point)
+                    (zip/edit vary-meta assoc ::point true)
+                    s/mark-syntax
+                    (s/mark-point ::point)
+                    (s/colorize ::point :point)
+                    zip/root
+                    pp/pprint)))
         [x y] (->> (string/split src #"\n")
                 (map-indexed #(format "\033[38;5;241m%4d\033[0m %s" (inc %1) %2))
                 (split-with #(not (re-find #"\f" %))))

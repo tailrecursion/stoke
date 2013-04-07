@@ -11,9 +11,10 @@
 (def prefix   #(:prefix (meta %)))
 
 (defn color [x s]
-  [[:pass (format "\033[38;5;%dm" (or (:color (meta x)) 7))]
-   [:text s] 
-   [:pass "\033[0m"]])
+  (let [{c :color b :bold} (meta x)]
+    [[:pass (format "\033[%dm\033[38;5;%dm" (or b 0) (or c 7))]
+     [:text s] 
+     [:pass "\033[0m"]]))
 
 (defn cat
   ([x]
