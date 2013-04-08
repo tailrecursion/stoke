@@ -66,7 +66,6 @@
 (def normal-mode              (mode-setter :normal))
 (def undo-mode                (mode-setter :undo))
 (def delete-mode              (mode-setter :delete))
-(def paredit-mode             (mode-setter :paredit))
 
 (def move-left                (multi c/move-left))
 (def move-leftmost            (once c/move-leftmost))
@@ -104,6 +103,10 @@
 (def undo-prev                (multi e/undo c/move-prev))
 
 (def placeholder (str \u2588))
+
+(defn paredit-mode [_]
+  (set-mode! :paredit)
+  (e/edit c/insert-left (r/read-string placeholder)))
 
 (defn paredit-insert-seq [src]
   (let [op (if (= placeholder (str (e/get-point)))
