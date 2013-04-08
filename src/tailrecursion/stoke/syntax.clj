@@ -1,20 +1,11 @@
 (ns tailrecursion.stoke.syntax
   (:require
-    [clojure.pprint             :refer [pprint]]
-    [clojure.string             :as string]
-    [clojure.zip                :as zip]
-    [tailrecursion.stoke.print  :as pp]
-    [tailrecursion.stoke.read   :as r]
-    [tailrecursion.stoke.util   :as u]))
-
-(def colors
-  {:default   {:color 103 :bold 0}
-   :point     {:color 214 :bold 1}
-   :keyword   {:color 107 :bold 0}
-   :symbol    {:color 103 :bold 0}
-   :clj-core  {:color 103 :bold 1}
-   :java-cls  {:color 203 :bold 1}
-   :string    {:color  14 :bold 0}})
+    [tailrecursion.stoke.term.colors  :refer [colors]]
+    [clojure.string                   :as string]
+    [clojure.zip                      :as zip]
+    [tailrecursion.stoke.print        :as pp]
+    [tailrecursion.stoke.read         :as r]
+    [tailrecursion.stoke.util         :as u]))
 
 (defn cursor [x]
   (let [c (if (= x :break) (str \u2588) "")]
@@ -49,25 +40,24 @@
 (defn java?*    [x] (and (= :sym (pp/type* x)) (in-package? x "java")))
 (defn string?*  [x] (= :str (pp/type* x)))
 
-(defn mark-syntax [src-zip]
-  (loop [loc (r/zipper (zip/root src-zip))]
-    (let [n  (zip/node loc)
-          k  (cond (keyword?* n)  :keyword
-                   (core?* n)     :clj-core
-                   (java?* n)     :java-cls
-                   (symbol?* n)   :symbol
-                   (string?* n)   :string
-                   :else          :default)
-          p  (try
-               (zip/edit loc set-color k)
-               (catch Throwable e loc))]
-      (if (zip/end? p) p (recur (zip/next p))))))
+(defn dfwalk [z f & args]
+  (apply u/depth-first-walk z r/zipper f args))
 
-(defn colorize [src-zip k color]
-  (let [{c :color b :bold} (get colors color)]
-    (loop [loc (r/zipper (zip/root src-zip))]
-      (let [p? (get (meta (zip/node loc)) k)
-            p  (try
-                 (if p? (zip/edit loc vary-meta assoc :color c :bold b) loc) 
-                 (catch Throwable e loc))]
-        (if (zip/end? p) p (recur (zip/next p)))))))
+(defn mark-syntax [z]
+  (dfwalk z #(let [n  (zip/node %)
+                   k  (cond (keyword?* n)  :keyword
+                            (core?* n)     :clj-core
+                            (java?* n)     :java-cls
+                            (symbol?* n)   :symbol
+                            (string?* n)   :string
+                            :else          :default)] 
+               (try
+                 (zip/edit % set-color k)
+                 (catch Throwable e %)))))
+
+(defn colorize [z k color]
+  (dfwalk z #(let [{c :color b :bold} (get colors color)
+                   p? (get (meta (zip/node %)) k)] 
+               (try
+                 (if p? (zip/edit % vary-meta assoc :color c :bold b) %) 
+                 (catch Throwable e %)))))

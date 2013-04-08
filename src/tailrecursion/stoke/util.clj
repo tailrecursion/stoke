@@ -10,6 +10,11 @@
         make-node #(vary-meta %1 assoc ::children %2)]
     (zip/zipper branch? children make-node root)))
 
+(defn depth-first-walk [z ctor f & args]
+  (loop [loc (ctor (zip/root z))]
+    (let [p (apply f loc args)]
+      (if (zip/end? p) p (recur (zip/next p))))))
+
 (defn zip-root [loc]
   (if (= :end (loc 1))
     loc
