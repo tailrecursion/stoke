@@ -11,14 +11,6 @@
   (let [c (if (= x :break) (str \u2588) "")]
     (format "\033[38;5;%dm\f%s\033[0m" (get-in colors [:point :color]) c)))
 
-(defn mark-point [src-zip k]
-  (loop [loc (r/zipper (zip/root src-zip))]
-    (let [p? (some #(get (meta %) k) (cons (zip/node loc) (zip/path loc)))
-          p  (try
-               (zip/edit loc vary-meta assoc k p?)
-               (catch Throwable e loc))] 
-      (if (zip/end? p) p (recur (zip/next p))))))
-
 (defn set-color [x k]
   (vary-meta x merge (get colors k)))
 
@@ -42,6 +34,13 @@
 
 (defn dfwalk [z f & args]
   (apply u/depth-first-walk z r/zipper f args))
+
+(defn mark-point [z k]
+  (dfwalk z #(let [k? (fn [x] (get (meta x) k))
+                   p? (some k? (cons (zip/node %) (zip/path %)))] 
+               (try
+                 (zip/edit % vary-meta assoc k p?)
+                 (catch Throwable e %)))))
 
 (defn mark-syntax [z]
   (dfwalk z #(let [n  (zip/node %)
