@@ -13,6 +13,8 @@
 (def file  (atom ""))
 (def files (atom {@file @point}))
 
+(defn get-point [] (-> @@point zip/node zip/node))
+
 (defn add-history [x]
   (swap! @point #(zip/rightmost (zip/down (zip/append-child % x)))))
 

@@ -25,6 +25,7 @@
 (def  delete-siblings         u/remove-siblings)
 
 (def  replace-point           u/replace-point)
+(def  edit-point              u/edit-point)
 
 (def  insert-left             u/insert-left)
 (def  insert-right            u/insert-right)

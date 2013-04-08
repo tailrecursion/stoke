@@ -99,3 +99,5 @@
 (defn replace-right [z x]
   (guard z zip/right zip/replace x))
 
+(defn edit-point [z f & args]
+  (apply zip/edit z f args))

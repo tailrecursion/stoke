@@ -66,6 +66,7 @@
 (def normal-mode              (mode-setter :normal))
 (def undo-mode                (mode-setter :undo))
 (def delete-mode              (mode-setter :delete))
+(def paredit-mode             (mode-setter :paredit))
 
 (def move-left                (multi c/move-left))
 (def move-leftmost            (once c/move-leftmost))
@@ -102,6 +103,37 @@
 (def undo-next                (multi e/undo c/move-next))
 (def undo-prev                (multi e/undo c/move-prev))
 
+(def placeholder (str \u2588))
+
+(defn paredit-insert-seq [src]
+  (let [op (if (= placeholder (str (e/get-point)))
+             c/replace-point
+             c/insert-right)] 
+    (e/edit op (r/read-string src)) 
+    (e/edit c/insert-rightmost-child (r/read-string placeholder))))
+
+(defn paredit-insert-expr [_]
+  (paredit-insert-seq "()"))
+
+(defn paredit-insert-vec [_]
+  (paredit-insert-seq "[]"))
+
+(defn paredit-edit-sym [c]
+  (let [p (str (e/get-point))]
+    (e/edit c/replace-point (r/read-string (if (= placeholder p)
+                                             (str c)
+                                             (str p c))))))
+
+(defn paredit-next [_]
+  (e/edit c/insert-right (r/read-string placeholder)))
+
+(defn paredit-up [_]
+  (e/edit c/move-up)
+  (e/edit c/insert-right (r/read-string placeholder)))
+
+(defn paredit-dispatch [c]
+  (if (re-find r/re-scalar (str c)) \a c))
+
 (def key-bindings
   (atom {:normal
          {:dispatch mult-dispatch
@@ -109,6 +141,7 @@
           \q        quit
           \u        undo-mode
           \d        delete-mode
+          \p        paredit-mode
           \h        move-left
           \^        move-leftmost
           \l        move-right
@@ -141,7 +174,18 @@
           \j        undo-down
           \k        undo-up
           \L        undo-next
-          \H        undo-prev}}))
+          \H        undo-prev}
+         :paredit
+         {:dispatch paredit-dispatch
+          \newline  normal-mode
+          \(        paredit-insert-expr
+          \)        paredit-up
+          \[        paredit-insert-vec
+          \]        paredit-up
+          \a        paredit-edit-sym
+          \space    paredit-next
+          }
+         }))
 
 (defn status-line [& texts]
   (let [text (string/join
