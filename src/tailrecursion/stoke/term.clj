@@ -9,7 +9,8 @@
     [tailrecursion.stoke.print  :as pp]
     [tailrecursion.stoke.util   :as u]
     [tailrecursion.stoke.cmd    :as c]
-    [tailrecursion.stoke.syntax :as s]))
+    [tailrecursion.stoke.syntax :as s]
+    [tailrecursion.stoke.term.colors  :refer [colors]]))
 
 (declare key-bindings pprint)
 
@@ -222,6 +223,12 @@
         file (.getName (io/file @e/file))]
     (println (status-line mode file))))
 
+(defn center [lines]
+  (let [lnlen (count (str (count lines)))
+        shift (- (int (Math/floor (/ (- cols pp/width) 2))) (inc lnlen)) 
+        pad   (apply str (repeat shift " "))]
+    (map #(str pad %) lines)))
+
 (defn pprint []
   (print "\033[2J\r")
   (let [colr  (fn [x] [:span [:pass (s/cursor x)] x])
@@ -240,13 +247,17 @@
                       (s/colorize ::point :point)
                       zip/root
                       pp/pprint)))) 
-        [x y] (->> (string/split src #"\n")
-                (map-indexed #(format "\033[38;5;241m%4d\033[0m %s" (inc %1) %2))
-                (split-with #(not (re-find #"\f" %))))
+        [x y] (let [s (string/split src #"\n")
+                    l (count (str (count s)))
+                    c (get-in colors [:line-nums :color])
+                    f (format "\033[38;5;%dm%%%dd\033[0m %%s" c l)] 
+                (->> s
+                  (map-indexed #(format f (inc %1) %2))
+                  (split-with #(not (re-find #"\f" %))))) 
         nx    (count x)
         ny    (count y)
         xtra  (/ (- lines 2 (+ nx ny)) 2)
-        pad   "~"
+        pad   " "
         padt  (repeat (int (Math/floor xtra)) pad)
         padb  (repeat (int (Math/ceil xtra)) pad)
         padx  (repeat (- ny nx) pad)
@@ -255,7 +266,7 @@
         nw    (count all)
         over  (int (Math/ceil (/ (- nw lines) 2)))
         win   (->> (if (< 0 over) (drop over all) all) (take lines))]
-    (->> win (string/join "\n") println)
+    (->> win center (string/join "\n") println)
     (status)))
 
 (defn -main [f]
