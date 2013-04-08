@@ -227,7 +227,9 @@
   (let [colr  (fn [x] [:span [:pass (s/cursor x)] x])
         pnt   (zip/node (zip/node @@e/point))
         post  #(if (::point (meta %1)) (colr %2) %2)
-        rmbr  #(string/replace % #" \x08\n\n" "\n")
+        rmbr  #(-> %
+                 (string/replace #" \x08\n\n" "\n")
+                 (string/replace #" \x08" "")) 
         src   (rmbr 
                 (with-out-str
                   (binding [pp/post-process post]
