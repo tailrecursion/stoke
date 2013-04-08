@@ -120,6 +120,9 @@
 (defn paredit-mode-rightmost [_]
   (paredit-mode c/insert-rightmost))
 
+(defn paredit-mode-rightmost-child [_]
+  (paredit-mode c/insert-rightmost-child))
+
 (defn paredit-mode-replace [_]
   (paredit-mode c/replace-point))
 
@@ -170,7 +173,7 @@
           \x        delete-point
           \e        read-file
           \c        paredit-mode-replace
-          \C        insert-leftmost-child
+          \C        paredit-mode-rightmost-child
           \i        paredit-mode-left
           \I        paredit-mode-leftmost
           \a        paredit-mode-right
@@ -179,11 +182,13 @@
           \o        insert-break-right}
          :delete
          {:dispatch mult-dispatch
+          (char 27) normal-mode
           \d        (modal delete-siblings) 
           \h        (modal delete-left)
           \l        (modal delete-right)}
          :undo
          {:dispatch mult-dispatch
+          (char 27) normal-mode
           \h        undo-left
           \^        undo-leftmost
           \l        undo-right
@@ -194,6 +199,7 @@
           \H        undo-prev}
          :paredit
          {:dispatch paredit-dispatch
+          (char 27) normal-mode
           \newline  normal-mode
           \(        paredit-insert-expr
           \)        paredit-up
@@ -253,9 +259,7 @@
   (loop []
     (pprint) 
     (let [c (char (.read System/in))]
-      (if (= c (char 27))
-        (do (set-mode! :normal) (recur))
-        (let [k ((get-in @key-bindings [@mode :dispatch]) c) 
-              f (get-in @key-bindings [@mode k])]
-          (if (or (not f) (not= :quit (f c))) (recur)))))))
+      (let [k ((get-in @key-bindings [@mode :dispatch]) c) 
+            f (get-in @key-bindings [@mode k])]
+        (if (or (not f) (not= :quit (f c))) (recur))))))
 
