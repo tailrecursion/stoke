@@ -9,6 +9,7 @@
 
 (def delims   #(:delims (meta %)))
 (def prefix   #(:prefix (meta %)))
+(def width    70)
 
 (defn color [x s]
   (let [{c :color b :bold} (meta x)]
@@ -114,13 +115,13 @@
 (defmethod pretty :set [x]
   (post x (pp-coll x `[:align ~@(cat (map pretty x))])))
 
-(defmethod pretty :key [x] (post x (:key x)))
+(defmethod pretty :key [x] (post x [:span [:pass " \b"] (:key x)]))
 (defmethod pretty :seq [x] (post x (pp-seq x)))
 (defmethod pretty :map [x] (post x (pp-coll x (by-pairs x))))
 (defmethod pretty :vec [x] ((get-method pretty :set) x))
 (defmethod pretty :vec-pairs [x] ((get-method pretty :map) x))
 
-(defprinter pprint pretty {:width 80})
+(defprinter pprint pretty {:width width})
 
 (defmethod pp-seq "def" [x] ((get-method pp-seq "defn") x))
 (defmethod pp-seq "fn" [x] ((get-method pp-seq "defn") x))

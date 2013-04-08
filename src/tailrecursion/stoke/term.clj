@@ -227,15 +227,17 @@
   (let [colr  (fn [x] [:span [:pass (s/cursor x)] x])
         pnt   (zip/node (zip/node @@e/point))
         post  #(if (::point (meta %1)) (colr %2) %2)
-        src   (with-out-str
-                (binding [pp/post-process post]
-                  (-> (zip/node @@e/point)
-                    (zip/edit vary-meta assoc ::point true)
-                    s/mark-syntax
-                    (s/mark-point ::point)
-                    (s/colorize ::point :point)
-                    zip/root
-                    pp/pprint)))
+        rmbr  #(string/replace % #" \x08\n\n" "\n")
+        src   (rmbr 
+                (with-out-str
+                  (binding [pp/post-process post]
+                    (-> (zip/node @@e/point)
+                      (zip/edit vary-meta assoc ::point true)
+                      s/mark-syntax
+                      (s/mark-point ::point)
+                      (s/colorize ::point :point)
+                      zip/root
+                      pp/pprint)))) 
         [x y] (->> (string/split src #"\n")
                 (map-indexed #(format "\033[38;5;241m%4d\033[0m %s" (inc %1) %2))
                 (split-with #(not (re-find #"\f" %))))
