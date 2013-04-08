@@ -104,9 +104,24 @@
 
 (def placeholder (str \u2588))
 
-(defn paredit-mode [_]
+(defn paredit-mode [op]
   (set-mode! :paredit)
-  (e/edit c/insert-left (r/read-string placeholder)))
+  (e/edit op (r/read-string placeholder)))
+
+(defn paredit-mode-left [_]
+  (paredit-mode c/insert-left))
+
+(defn paredit-mode-leftmost [_]
+  (paredit-mode c/insert-leftmost))
+
+(defn paredit-mode-right [_]
+  (paredit-mode c/insert-right))
+
+(defn paredit-mode-rightmost [_]
+  (paredit-mode c/insert-rightmost))
+
+(defn paredit-mode-replace [_]
+  (paredit-mode c/replace-point))
 
 (defn paredit-insert-seq [src]
   (let [op (if (= placeholder (str (e/get-point)))
@@ -144,7 +159,6 @@
           \q        quit
           \u        undo-mode
           \d        delete-mode
-          \p        paredit-mode
           \h        move-left
           \^        move-leftmost
           \l        move-right
@@ -155,12 +169,12 @@
           \H        move-prev
           \x        delete-point
           \e        read-file
-          \c        replace-point
+          \c        paredit-mode-replace
           \C        insert-leftmost-child
-          \i        insert-left
-          \I        insert-leftmost
-          \a        insert-right
-          \A        insert-rightmost
+          \i        paredit-mode-left
+          \I        paredit-mode-leftmost
+          \a        paredit-mode-right
+          \A        paredit-mode-rightmost
           \O        insert-break-left
           \o        insert-break-right}
          :delete
