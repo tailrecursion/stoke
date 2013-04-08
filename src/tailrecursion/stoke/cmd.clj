@@ -33,5 +33,5 @@
 (def  insert-rightmost        u/insert-rightmost)
 (def  insert-leftmost-child   u/insert-child)
 (def  insert-rightmost-child  u/append-child)
-(def  insert-break-left       #(u/insert-left % (r/read-string "\n\n"))) 
-(def  insert-break-right      #(u/insert-right % (r/read-string "\n\n"))) 
+(def  insert-break-left       #(-> (u/insert-left % (r/read-string "\n\n")) zip/right)) 
+(def  insert-break-right      #(-> (u/insert-right % (r/read-string "\n\n")) zip/left)) 
