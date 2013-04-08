@@ -55,8 +55,7 @@
                  (catch Throwable e %)))))
 
 (defn colorize [z k color]
-  (dfwalk z #(let [{c :color b :bold} (get colors color)
-                   p? (get (meta (zip/node %)) k)] 
-               (try
-                 (if p? (zip/edit % vary-meta assoc :color c :bold b) %) 
-                 (catch Throwable e %)))))
+  (dfwalk z #(try
+               (if (get (meta (zip/node %)) k)
+                 (zip/edit % set-color color) %) 
+               (catch Throwable e %))))
