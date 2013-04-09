@@ -1,13 +1,20 @@
 (ns tailrecursion.stoke.core
   (:require
+    [tailrecursion.stoke.edit           :as e]
     [tailrecursion.stoke.term           :as t]
     [tailrecursion.stoke.mode.paredit   :as p]
     [tailrecursion.stoke.mode.normal    :as n]
     [tailrecursion.stoke.mode.undo      :as u]))
 
+(defn debug-point [_]
+  (binding [*print-meta* true]
+    (prn (e/get-point)))
+  (.read System/in))
+
 (def key-bindings
   {:normal
    {:dispatch t/mult-dispatch
+    \?        debug-point
     \q        (constantly :quit)
     \u        (constantly :undo)
     \d        (constantly :delete)

@@ -3,9 +3,13 @@
     [clojure.zip                      :as zip]
     [tailrecursion.stoke.edit         :as e]
     [tailrecursion.stoke.read         :as r]
-    [tailrecursion.stoke.cmd          :as c]))
+    [tailrecursion.stoke.cmd          :as c]
+    [tailrecursion.stoke.print        :as p]))
 
 (def placeholder (str \u2588))
+
+(defn trim [s n]
+  (apply str (drop-last n s)))
 
 (defn paredit-mode [op]
   (e/edit op (r/read-string placeholder)))
@@ -41,11 +45,13 @@
 (defn paredit-insert-vec [_]
   (paredit-insert-seq "[]"))
 
+(defn paredit-insert-map [_]
+  (paredit-insert-seq "{}"))
+
 (defn paredit-edit-sym [c]
-  (let [p (str (e/get-point))]
-    (e/edit c/replace-point (r/read-string (if (= placeholder p)
-                                             (str c)
-                                             (str p c))))))
+  (let [p (str (e/get-point))
+        s (if (= placeholder p) (str c) (str p c))]
+    (e/edit c/replace-point (r/read-string s))))
 
 (defn paredit-next [_]
   (e/edit c/insert-right (r/read-string placeholder)))
@@ -54,6 +60,37 @@
   (e/edit c/move-up)
   (e/edit c/insert-right (r/read-string placeholder)))
 
+(defn dispatch-char [point type c]
+  (if (and (= "\\" (str point))
+           (contains? (set (mapcat identity r/delims)) c))
+    (paredit-edit-sym c)))
+
+(defn dispatch-str [point type c]
+  (cond
+    (and (= placeholder (str point)) (= \" c))
+    (e/edit c/replace-point (r/read-string "\"\""))
+    (= :str type)
+    (let [s (subs (trim (first point) 1) 1)]
+      (cond
+        (= (char 127) c)
+        (cond
+          (= \\ (last (trim s 1)))
+          (e/edit c/replace-point (r/read-string (str \" (trim s 2) \")))
+          (< 0 (count s))
+          (e/edit c/replace-point (r/read-string (str \" (trim s 1) \")))
+          :else
+          (e/edit c/replace-point (r/read-string placeholder)))
+        (= \u25A1 (last s))
+        (e/edit c/replace-point (r/read-string (str \" (trim s 1) c \")))
+        (= \\ c)
+        (e/edit c/replace-point (r/read-string (str \" s c \u25A1 \")))
+        (= \" c)
+        (e/edit c/insert-right (r/read-string placeholder))
+        :else
+        (e/edit c/replace-point (r/read-string (str \" s c \")))))))
+
 (defn paredit-dispatch [c]
-  (if (re-find r/re-scalar (str c)) \a c))
+  (let [p (e/get-point)
+        t (p/type* p)]
+    (dispatch-str p t c)))
 

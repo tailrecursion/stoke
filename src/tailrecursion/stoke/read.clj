@@ -27,8 +27,9 @@
         (cond
           (= \" p)          (str out p)
           (= [\\ \"] [p q]) (recur (str out p q) (subs in 2))
+          (= [\\ \\] [p q]) (recur (str out p q) (subs in 2))
           p                 (recur (str out p) (subs in 1))
-          :else             (throw (Exception. "Unreadable string: " in)))))))
+          :else             (throw (Exception. (str "Unreadable string: " in))))))))
 
 (defn by-pattern [p f src]
   (gobble-whitespace src)
@@ -59,9 +60,11 @@
   (by-pattern re-macro symbol src))
 
 (defn read-char [src]
-  (when-let [s (and (= \\ (first @src)) (apply str (take 2 @src)))] 
-    (swap! src subs 2)
-    (symbol s)))
+  (gobble-whitespace src)
+  (let [d? #(contains? (set (mapcat identity delims)) %)]
+    (when-let [s (and (= \\ (first @src)) (d? (second @src)) (subs @src 0 2))]
+      (swap! src subs 2)
+      (symbol s))))
 
 (defn read-scalar [src]
   (by-pattern re-scalar symbol src))
@@ -83,10 +86,10 @@
           (recur (conj items nxt) (read src)))))))
 
 (defn read [src]
-  (or (read-re src)
-      (read-macro src)
-      (read-break src)
+  (or (read-break src)
       (read-char src)
+      (read-re src)
+      (read-macro src)
       (read-str src)
       (read-sequence src)
       (read-scalar src)))
