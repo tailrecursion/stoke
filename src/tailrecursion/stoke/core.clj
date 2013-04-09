@@ -1,0 +1,62 @@
+(ns tailrecursion.stoke.core
+  (:require
+    [tailrecursion.stoke.term           :as t]
+    [tailrecursion.stoke.mode.paredit   :as p]
+    [tailrecursion.stoke.mode.normal    :as n]
+    [tailrecursion.stoke.mode.undo      :as u]))
+
+(def key-bindings
+  {:normal
+   {:dispatch t/mult-dispatch
+    \q        (constantly :quit)
+    \u        (constantly :undo)
+    \d        (constantly :delete)
+    \h        n/move-left
+    \^        n/move-leftmost
+    \l        n/move-right
+    \$        n/move-rightmost
+    \j        n/move-down
+    \k        n/move-up
+    \L        n/move-next
+    \H        n/move-prev
+    \x        n/delete-point
+    \e        t/read-file
+    \c        (t/enter-mode :paredit p/paredit-mode-replace)
+    \C        (t/enter-mode :paredit p/paredit-mode-rightmost-child)
+    \i        (t/enter-mode :paredit p/paredit-mode-left)
+    \I        (t/enter-mode :paredit p/paredit-mode-leftmost)
+    \a        (t/enter-mode :paredit p/paredit-mode-right)
+    \A        (t/enter-mode :paredit p/paredit-mode-rightmost)
+    \O        n/insert-break-left
+    \o        n/insert-break-right}
+   :delete
+   {:dispatch t/mult-dispatch
+    (char 27) (constantly :normal)
+    \d        (t/modal n/delete-siblings) 
+    \h        (t/modal n/delete-left)
+    \l        (t/modal n/delete-right)}
+   :undo
+   {:dispatch t/mult-dispatch
+    (char 27) (constantly :normal)
+    \h        u/undo-left
+    \^        u/undo-leftmost
+    \l        u/undo-right
+    \$        u/undo-rightmost
+    \j        u/undo-down
+    \k        u/undo-up
+    \L        u/undo-next
+    \H        u/undo-prev}
+   :paredit
+   {:dispatch p/paredit-dispatch
+    (char 27) (constantly :normal)
+    \newline  (constantly :normal)
+    \(        p/paredit-insert-expr
+    \)        p/paredit-up
+    \[        p/paredit-insert-vec
+    \]        p/paredit-up
+    \a        p/paredit-edit-sym
+    \space    p/paredit-next}})
+
+(defn -main [f]
+  (reset! t/key-bindings key-bindings)
+  (t/start-loop f))
