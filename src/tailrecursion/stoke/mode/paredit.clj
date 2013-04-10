@@ -12,7 +12,8 @@
       DEL                 (char 127)
       BOX                 \u25A1
       BLOCK               \u2588
-      word?               #(not (Character/isWhitespace %)) 
+      word?               #(and (not (Character/isISOControl %))
+                                (not (Character/isWhitespace %)))
       trim                #(apply str (drop-last %2 %1))
       read-thing          #(if (string? %) (r/read-string %) %)
       read-op             #(fn [s] (e/edit % (read-thing s)))
@@ -24,15 +25,12 @@
       ins-right           (read-op c/insert-right)
       ins-rightmost       (read-op c/insert-rightmost)
       rm-point            #(e/edit c/delete-point)
+      rm-last-child       #(e/edit c/delete-rightmost-child)
       ins-sequential      #(let [op (if (= placeholder (str (e/get-point)))
                                       c/replace-point
                                       c/insert-right)] 
                              ((read-op op) %) 
-                             (ins-rightmost-child placeholder))
-      cleanup             #(let [p (e/get-point)
-                                 s (last (str p))]
-                             (if (or (= BOX s) (::placeholder (meta p)))
-                               (rm-point)))]
+                             (ins-rightmost-child placeholder))]
 
   (def placeholder
     (-> (symbol (str BLOCK)) (with-meta {::placeholder true})))
@@ -75,15 +73,20 @@
   (defn- dispatch-close [point point-zip type c placeholder?]
     (let [p (-> point-zip zip/up zip/node)]
       (when (= c (get-in (meta p) [:delims 1]))
-        (if placeholder? (rm-point) (e/edit c/move-up)) 
+        (e/edit c/move-up) 
+        (if placeholder? (rm-last-child))
         (ins-right placeholder))))
 
   (defn- dispatch-char [point point-zip type c placeholder?]
-    (let [charpoint?  (= (str point) (str \\ BOX))]
-      (cond
-        (and placeholder? (= \\ c)) (rpl-point (str \\ BOX))
-        (and charpoint? (= DEL c))  (rpl-point placeholder)
-        (and charpoint? (word? c))  (rpl-point (str \\ c)))))
+    (if (= :sym type)
+      (let [charpoint?  (= (str point) (str \\ BOX))]
+        (cond
+          (and placeholder? (= \\ c)) (rpl-point (str \\ BOX))
+          (and charpoint? (= DEL c))  (rpl-point placeholder)
+          (and charpoint? (word? c))  (rpl-point (str \\ c))))))
+
+  (defn- dispatch-delete [point point-zip type c placeholder?]
+    (if (and placeholder? (= DEL c)) true))
 
   (defn- dispatch-scalar [point point-zip type c placeholder?]
     (let [ok? (re-find r/re-scalar (str c))
@@ -91,9 +94,9 @@
       (cond
         (and ok? placeholder?)
         (rpl-point (str c))
-        (= :sym type)
+        (and (not placeholder?) (= :sym type)) 
         (cond
-          (= DEL c)       (if (< 0 (count s))
+          (= DEL c)       (if (< 1 (count s))
                             (rpl-point (trim s 1))
                             (rpl-point placeholder))
           (= \space c)    (ins-right placeholder)
@@ -124,13 +127,12 @@
           type          (p/type* point)
           placeholder?  (::placeholder (meta point))
           dispatch      #(% point point-zip type c placeholder?)]
-      (or (dispatch dispatch-quit)
+      (or (dispatch dispatch-delete)
+          (dispatch dispatch-quit)
           (dispatch dispatch-char)
           (dispatch dispatch-string)
           (dispatch dispatch-scalar)
           (dispatch dispatch-open)
           (dispatch dispatch-close)
           (dispatch dispatch-break)
-          c)))
-
-  )
+          c))))
