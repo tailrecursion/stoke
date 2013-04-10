@@ -25,12 +25,7 @@
       ins-right           (read-op c/insert-right)
       ins-rightmost       (read-op c/insert-rightmost)
       rm-point            #(e/edit c/delete-point)
-      rm-last-child       #(e/edit c/delete-rightmost-child)
-      ins-sequential      #(let [op (if (= placeholder (str (e/get-point)))
-                                      c/replace-point
-                                      c/insert-right)] 
-                             ((read-op op) %) 
-                             (ins-rightmost-child placeholder))]
+      rm-last-child       #(e/edit c/delete-rightmost-child)]
 
   (def placeholder
     (-> (symbol (str BLOCK)) (with-meta {::placeholder true})))
