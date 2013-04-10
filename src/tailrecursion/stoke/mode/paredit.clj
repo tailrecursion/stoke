@@ -6,91 +6,131 @@
     [tailrecursion.stoke.cmd          :as c]
     [tailrecursion.stoke.print        :as p]))
 
-(def placeholder (str \u2588))
+(declare placeholder)
 
-(defn trim [s n]
-  (apply str (drop-last n s)))
+(let [ESC                 (char 27)
+      DEL                 (char 127)
+      BOX                 \u25A1
+      BLOCK               \u2588
+      word?               #(not (Character/isWhitespace %)) 
+      trim                #(apply str (drop-last %2 %1))
+      read-thing          #(if (string? %) (r/read-string %) %)
+      read-op             #(fn [s] (e/edit % (read-thing s)))
+      enter-mode          #((read-op %) placeholder)
+      rpl-point           (read-op c/replace-point)
+      ins-left            (read-op c/insert-left)
+      ins-leftmost        (read-op c/insert-leftmost)
+      ins-rightmost-child (read-op c/insert-rightmost-child)
+      ins-right           (read-op c/insert-right)
+      ins-rightmost       (read-op c/insert-rightmost)
+      rm-point            #(e/edit c/delete-point)
+      ins-sequential      #(let [op (if (= placeholder (str (e/get-point)))
+                                      c/replace-point
+                                      c/insert-right)] 
+                             ((read-op op) %) 
+                             (ins-rightmost-child placeholder))
+      cleanup             #(let [p (e/get-point)
+                                 s (last (str p))]
+                             (if (or (= BOX s) (::placeholder (meta p)))
+                               (rm-point)))]
 
-(defn paredit-mode [op]
-  (e/edit op (r/read-string placeholder)))
+  (def placeholder
+    (-> (symbol (str BLOCK)) (with-meta {::placeholder true})))
 
-(defn paredit-mode-left [_]
-  (paredit-mode c/insert-left))
+  (defn paredit-mode-left [_]
+    (ins-left placeholder))
 
-(defn paredit-mode-leftmost [_]
-  (paredit-mode c/insert-leftmost))
+  (defn paredit-mode-leftmost [_]
+    (ins-left placeholder))
 
-(defn paredit-mode-right [_]
-  (paredit-mode c/insert-right))
+  (defn paredit-mode-right [_]
+    (ins-right placeholder))
 
-(defn paredit-mode-rightmost [_]
-  (paredit-mode c/insert-rightmost))
+  (defn paredit-mode-rightmost [_]
+    (ins-rightmost placeholder))
 
-(defn paredit-mode-rightmost-child [_]
-  (paredit-mode c/insert-rightmost-child))
+  (defn paredit-mode-rightmost-child [_]
+    (ins-rightmost-child placeholder))
 
-(defn paredit-mode-replace [_]
-  (paredit-mode c/replace-point))
+  (defn paredit-mode-edit [_] true)
 
-(defn paredit-insert-seq [src]
-  (let [op (if (= placeholder (str (e/get-point)))
-             c/replace-point
-             c/insert-right)] 
-    (e/edit op (r/read-string src)) 
-    (e/edit c/insert-rightmost-child (r/read-string placeholder))))
+  (defn paredit-mode-replace [_]
+    (rpl-point placeholder))
 
-(defn paredit-insert-expr [_]
-  (paredit-insert-seq "()"))
+  (defn- dispatch-quit [point point-zip type c placeholder?]
+    (when (= ESC c)
+      (if (or (= BOX (last (str point))) placeholder?) (rm-point))
+      c))
 
-(defn paredit-insert-vec [_]
-  (paredit-insert-seq "[]"))
+  (defn- dispatch-break [point point-zip type c placeholder?]
+    (when (and placeholder? (= \newline c)) 
+      (rpl-point "\n\n")
+      (ins-right placeholder)))
 
-(defn paredit-insert-map [_]
-  (paredit-insert-seq "{}"))
+  (defn- dispatch-open [point point-zip type c placeholder?]
+    (when (contains? (set (keys r/delims)) c)
+      ((if placeholder? rpl-point ins-right) (str c (r/delims c)))
+      (ins-rightmost-child placeholder)))
 
-(defn paredit-edit-sym [c]
-  (let [p (str (e/get-point))
-        s (if (= placeholder p) (str c) (str p c))]
-    (e/edit c/replace-point (r/read-string s))))
+  (defn- dispatch-close [point point-zip type c placeholder?]
+    (let [p (-> point-zip zip/up zip/node)]
+      (when (= c (get-in (meta p) [:delims 1]))
+        (if placeholder? (rm-point) (e/edit c/move-up)) 
+        (ins-right placeholder))))
 
-(defn paredit-next [_]
-  (e/edit c/insert-right (r/read-string placeholder)))
-
-(defn paredit-up [_]
-  (e/edit c/move-up)
-  (e/edit c/insert-right (r/read-string placeholder)))
-
-(defn dispatch-char [point type c]
-  (if (and (= "\\" (str point))
-           (contains? (set (mapcat identity r/delims)) c))
-    (paredit-edit-sym c)))
-
-(defn dispatch-str [point type c]
-  (cond
-    (and (= placeholder (str point)) (= \" c))
-    (e/edit c/replace-point (r/read-string "\"\""))
-    (= :str type)
-    (let [s (subs (trim (first point) 1) 1)]
+  (defn- dispatch-char [point point-zip type c placeholder?]
+    (let [charpoint?  (= (str point) (str \\ BOX))]
       (cond
-        (= (char 127) c)
+        (and placeholder? (= \\ c)) (rpl-point (str \\ BOX))
+        (and charpoint? (= DEL c))  (rpl-point placeholder)
+        (and charpoint? (word? c))  (rpl-point (str \\ c)))))
+
+  (defn- dispatch-scalar [point point-zip type c placeholder?]
+    (let [ok? (re-find r/re-scalar (str c))
+          s   (str point)]
+      (cond
+        (and ok? placeholder?)
+        (rpl-point (str c))
+        (= :sym type)
         (cond
-          (= \\ (last (trim s 1)))
-          (e/edit c/replace-point (r/read-string (str \" (trim s 2) \")))
-          (< 0 (count s))
-          (e/edit c/replace-point (r/read-string (str \" (trim s 1) \")))
-          :else
-          (e/edit c/replace-point (r/read-string placeholder)))
-        (= \u25A1 (last s))
-        (e/edit c/replace-point (r/read-string (str \" (trim s 1) c \")))
-        (= \\ c)
-        (e/edit c/replace-point (r/read-string (str \" s c \u25A1 \")))
-        (= \" c)
-        (e/edit c/insert-right (r/read-string placeholder))
-        :else
-        (e/edit c/replace-point (r/read-string (str \" s c \")))))))
+          (= DEL c)       (if (< 0 (count s))
+                            (rpl-point (trim s 1))
+                            (rpl-point placeholder))
+          (= \space c)    (ins-right placeholder)
+          ok?             (rpl-point (str s c))))))
 
-(defn paredit-dispatch [c]
-  (let [p (e/get-point)
-        t (p/type* p)]
-    (dispatch-str p t c)))
+  (defn- dispatch-string [point point-zip type c placeholder?]
+    (cond
+      (and placeholder? (= \" c))
+      (rpl-point "\"\"")
+      (= :str type)
+      (let [s     (subs (trim (first point) 1) 1)
+            esc?  (and (= BOX (last s)) (word? c))
+            bad?  (and (= BOX (last s)) (not esc?))
+            bak   #(cond
+                     (= \\ (last (trim s 1)))  (rpl-point (str \" (trim s 2) \"))
+                     (< 0 (count s))           (rpl-point (str \" (trim s 1) \"))
+                     :else                     (rpl-point placeholder))]
+        (cond
+          (= DEL c)   (bak)
+          esc?        (rpl-point (str \" (trim s 1) c \"))
+          (= \\ c)    (rpl-point (str \" s c BOX \"))
+          (= \" c)    (ins-right placeholder)
+          (not bad?)  (rpl-point (str \" s c \"))))))
 
+  (defn paredit-dispatch [c]
+    (let [point         (e/get-point)
+          point-zip     (zip/node @@e/point) 
+          type          (p/type* point)
+          placeholder?  (::placeholder (meta point))
+          dispatch      #(% point point-zip type c placeholder?)]
+      (or (dispatch dispatch-quit)
+          (dispatch dispatch-char)
+          (dispatch dispatch-string)
+          (dispatch dispatch-scalar)
+          (dispatch dispatch-open)
+          (dispatch dispatch-close)
+          (dispatch dispatch-break)
+          c)))
+
+  )

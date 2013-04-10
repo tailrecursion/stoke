@@ -61,7 +61,7 @@
 
 (defn read-char [src]
   (gobble-whitespace src)
-  (let [d? #(contains? (set (mapcat identity delims)) %)]
+  (let [d? #(contains? (set (cons \" (mapcat identity delims))) %)]
     (when-let [s (and (= \\ (first @src)) (d? (second @src)) (subs @src 0 2))]
       (swap! src subs 2)
       (symbol s))))

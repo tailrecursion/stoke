@@ -28,7 +28,8 @@
     \H        n/move-prev
     \x        n/delete-point
     \e        t/read-file
-    \c        (t/enter-mode :paredit p/paredit-mode-replace)
+    \c        (t/enter-mode :paredit p/paredit-mode-edit)
+    \r        (t/enter-mode :paredit p/paredit-mode-replace)
     \C        (t/enter-mode :paredit p/paredit-mode-rightmost-child)
     \i        (t/enter-mode :paredit p/paredit-mode-left)
     \I        (t/enter-mode :paredit p/paredit-mode-leftmost)
@@ -56,13 +57,7 @@
    :paredit
    {:dispatch p/paredit-dispatch
     (char 27) (constantly :normal)
-    \newline  (constantly :normal)
-    \(        p/paredit-insert-expr
-    \)        p/paredit-up
-    \[        p/paredit-insert-vec
-    \]        p/paredit-up
-    \a        p/paredit-edit-sym
-    \space    p/paredit-next}})
+    }})
 
 (defn -main [f]
   (reset! t/key-bindings key-bindings)
