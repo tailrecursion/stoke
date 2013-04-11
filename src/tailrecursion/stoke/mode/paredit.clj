@@ -4,12 +4,14 @@
     [tailrecursion.stoke.edit         :as e]
     [tailrecursion.stoke.read         :as r]
     [tailrecursion.stoke.cmd          :as c]
+    [tailrecursion.stoke.util         :as u]
     [tailrecursion.stoke.print        :as p]))
 
 (declare placeholder)
 
 (let [ESC                 (char 27)
       DEL                 (char 127)
+      C-X                 (char 24)
       BOX                 \u25A1
       BLOCK               \u2588
       word?               #(and (not (Character/isISOControl %))
@@ -25,6 +27,9 @@
       ins-right           (read-op c/insert-right)
       ins-rightmost       (read-op c/insert-rightmost)
       rm-point            #(e/edit c/delete-point)
+      edit-point          #(->> (with-meta (read-thing %1) (meta %2))
+                             (e/edit c/replace-point))
+      rm-left             #(e/edit c/delete-left)
       rm-last-child       #(e/edit c/delete-rightmost-child)]
 
   (def placeholder
@@ -50,9 +55,35 @@
   (defn paredit-mode-replace [_]
     (rpl-point placeholder))
 
+  (defn paredit-mode-break-before [_]
+    (ins-left "\n\n")
+    (ins-left placeholder))
+
+  (defn paredit-mode-break-after [_]
+    (ins-right "\n\n")
+    (ins-right placeholder))
+
+  (defn paredit-kill-prefix [_]
+    (e/edit zip/edit vary-meta dissoc :prefix))
+
+  (defn- join-macro-left [z]
+    (let [l (zip/left (zip/node z))
+          s (if l (str (zip/node l)))]
+      (when (contains? r/macros s)
+        (rm-left)
+        (e/edit zip/edit vary-meta assoc :prefix (symbol s)))))
+
+  (defn- join-macro-right [z]
+    (let [n (zip/node (zip/node z))]
+      (when (and (zip/right (zip/node z)) (contains? r/macros (str n))) 
+        (rm-point) 
+        (e/edit zip/edit vary-meta assoc :prefix (symbol (str n))))))
+
   (defn- dispatch-quit [point point-zip type c placeholder?]
     (when (= ESC c)
       (if (or (= BOX (last (str point))) placeholder?) (rm-point))
+      (join-macro-left @@e/point)
+      (join-macro-right @@e/point)
       c))
 
   (defn- dispatch-break [point point-zip type c placeholder?]
@@ -62,7 +93,8 @@
 
   (defn- dispatch-open [point point-zip type c placeholder?]
     (when (contains? (set (keys r/delims)) c)
-      ((if placeholder? rpl-point ins-right) (str c (r/delims c)))
+      (join-macro-left
+        ((if placeholder? rpl-point ins-right) (str c (r/delims c)))) 
       (ins-rightmost-child placeholder)))
 
   (defn- dispatch-close [point point-zip type c placeholder?]
@@ -88,14 +120,20 @@
           s   (str point)]
       (cond
         (and ok? placeholder?)
-        (rpl-point (str c))
+        (join-macro-left (rpl-point (str c))) 
         (and (not placeholder?) (= :sym type)) 
         (cond
           (= DEL c)       (if (< 1 (count s))
-                            (rpl-point (trim s 1))
+                            (edit-point (trim s 1) point)
                             (rpl-point placeholder))
           (= \space c)    (ins-right placeholder)
-          ok?             (rpl-point (str s c))))))
+          ok?             (edit-point (str s c) point)))))
+
+  (defn- dispatch-macro [point point-zip type c placeholder?]
+    (let [m? #(contains? r/macros (apply str %&))]
+      (cond
+        (and (m? c) placeholder?) (rpl-point (str c))
+        (m? point c)              (rpl-point (str point c)))))
 
   (defn- dispatch-string [point point-zip type c placeholder?]
     (cond
@@ -125,6 +163,7 @@
       (or (dispatch dispatch-delete)
           (dispatch dispatch-quit)
           (dispatch dispatch-char)
+          (dispatch dispatch-macro)
           (dispatch dispatch-string)
           (dispatch dispatch-scalar)
           (dispatch dispatch-open)

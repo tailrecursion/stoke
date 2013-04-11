@@ -35,8 +35,9 @@
     \I        (t/enter-mode :paredit p/paredit-mode-leftmost)
     \a        (t/enter-mode :paredit p/paredit-mode-right)
     \A        (t/enter-mode :paredit p/paredit-mode-rightmost)
-    \O        n/insert-break-left
-    \o        n/insert-break-right}
+    \O        (t/enter-mode :paredit p/paredit-mode-break-before)
+    \o        (t/enter-mode :paredit p/paredit-mode-break-after)
+    \m        p/paredit-kill-prefix}
    :delete
    {:dispatch t/mult-dispatch
     (char 27) (constantly :normal)
