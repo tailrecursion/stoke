@@ -3,6 +3,7 @@
     [tailrecursion.stoke.edit           :as e]
     [tailrecursion.stoke.term           :as t]
     [tailrecursion.stoke.mode.paredit   :as p]
+    [tailrecursion.stoke.mode.command   :as c]
     [tailrecursion.stoke.mode.normal    :as n]
     [tailrecursion.stoke.mode.undo      :as u]))
 
@@ -20,6 +21,7 @@
     \q        (constantly :quit)
     \u        (constantly :undo)
     \d        (constantly :delete)
+    \:        (constantly :command)
     \h        n/move-left
     \^        n/move-leftmost
     \l        n/move-right
@@ -29,7 +31,6 @@
     \L        n/move-next
     \H        n/move-prev
     \x        n/delete-point
-    \e        t/read-file
     \c        (t/enter-mode :paredit p/paredit-mode-edit)
     \r        (t/enter-mode :paredit p/paredit-mode-replace)
     \C        (t/enter-mode :paredit p/paredit-mode-rightmost-child)
@@ -59,8 +60,10 @@
     \H        u/undo-prev}
    :paredit
    {:dispatch p/paredit-dispatch
-    (char 27) (constantly :normal)
-    }})
+    (char 27) (constantly :normal)}
+   :command
+   {:dispatch c/command-dispatch
+    (char 27) (constantly :normal)}})
 
 (defn -main [f]
   (reset! t/key-bindings key-bindings)

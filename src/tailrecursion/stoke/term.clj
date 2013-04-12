@@ -23,11 +23,16 @@
 (def mode   (atom :normal))
 (def mult   (atom nil))
 (def buffer (atom [""]))
+(def cmd    (atom ""))
+
+(add-watch cmd ::command (fn [_ _ _ _] (swap! @e/point identity)))
 
 (defn set-mode! [x]
   (when (get @key-bindings x)
     (reset! mult nil) 
-    (reset! mode x))
+    (reset! mode x)
+    (reset! cmd "")
+    (swap! @e/point identity))
   x)
 
 (defn update-mult! [c]
@@ -63,9 +68,6 @@
 
 (defn once-input [f]
   (fn [_] (e/edit f (input))))
-
-(defn read-file [_]
-  (fn [_] (e/read-file (str (read)))))
 
 (defn enter-mode [mode f]
   (fn [c]
@@ -119,9 +121,9 @@
                   (split-with #(not (re-find #"\f" %))))) 
         nx    (count x)
         ny    (count y)
-        xtra  (/ (- lines 2 (+ nx ny)) 2)
+        xtra  (/ (- lines (+ nx ny)) 2)
         pad   " "
-        padt  (repeat (int (Math/ceil xtra)) pad)
+        padt  (repeat (int (Math/floor xtra)) pad)
         padb  (repeat (int (Math/ceil xtra)) pad)
         padx  (repeat (- ny nx) pad)
         pady  (repeat (- nx ny) pad)
@@ -129,7 +131,7 @@
         nw    (count all)
         over  (int (Math/ceil (/ (- nw lines) 2)))
         win   (->> (if (< 0 over) (drop over all) all) (take lines))]
-    (conj (vec (center win)) (status))))
+    (conj (vec (drop-last 2 (center win))) (status) @cmd)))
 
 (defn paint [term output-lines]
   (doall
@@ -149,13 +151,16 @@
         (if (cond (= :quit f) false (keyword? f) (set-mode! f) :else true)
           (recur))))))
 
-(defn start-loop [f]
-  (let [term (t/get-terminal :text)
-        work (Thread. read-loop)]
+(let [term (t/get-terminal :text)
+      work (Thread. read-loop)]
+
+  (defn read-file [f]
+    (e/read-file f #(paint term (pprint %)))) 
+
+  (defn start-loop [f]
     (t/in-terminal
       term
       (e/init #(paint term (pprint %)))
-      ;(e/read-file f #(paint term (pprint %))) 
       (.start work)
-      (.join work))))
+      (.join work)))) 
 
