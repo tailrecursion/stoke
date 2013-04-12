@@ -98,7 +98,8 @@
       (ins-rightmost-child placeholder)))
 
   (defn- dispatch-close [point point-zip type c placeholder?]
-    (let [p (-> point-zip zip/up zip/node)]
+    (let [n (-> point-zip zip/up)
+          p (if n (zip/node n))]
       (when (= c (get-in (meta p) [:delims 1]))
         (e/edit c/move-up) 
         (if placeholder? (rm-last-child))

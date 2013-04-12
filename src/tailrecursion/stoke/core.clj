@@ -9,7 +9,9 @@
 (defn debug-point [_]
   (binding [*print-meta* true]
     (prn (e/get-point)))
-  (.read System/in))
+  (.read System/in)
+  (reset! t/buffer [])
+  (swap! @e/point identity))
 
 (def key-bindings
   {:normal

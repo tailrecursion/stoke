@@ -83,15 +83,16 @@
 
 (defn status []
   (let [mode (str @mode)
-        file (.getName (io/file @e/file))]
-    (println (status-line mode file))))
+        file (if (string? @e/file)
+               (.getName (io/file @e/file))
+               (str @e/file))]
+    (status-line mode file)))
 
 (defn center [lines]
   (let [lnlen (count (str (count lines)))
         shift (- (int (Math/floor (/ (- cols pp/width) 2))) (inc lnlen)) 
-        pad   (apply str (repeat shift " "))
-        cls   (apply str (repeat cols " "))]
-    (->> lines (map #(str cls "\r" pad %)))))
+        pad   (apply str (repeat shift " "))]
+    (map #(str pad %) lines)))
 
 (defn pprint [point]
   (let [colr  (fn [x] [:span [:pass (s/cursor x)] x])
@@ -120,7 +121,7 @@
         ny    (count y)
         xtra  (/ (- lines 2 (+ nx ny)) 2)
         pad   " "
-        padt  (repeat (int (Math/floor xtra)) pad)
+        padt  (repeat (int (Math/ceil xtra)) pad)
         padb  (repeat (int (Math/ceil xtra)) pad)
         padx  (repeat (- ny nx) pad)
         pady  (repeat (- nx ny) pad)
@@ -128,13 +129,14 @@
         nw    (count all)
         over  (int (Math/ceil (/ (- nw lines) 2)))
         win   (->> (if (< 0 over) (drop over all) all) (take lines))]
-    (vec (center win))))
+    (conj (vec (center win)) (status))))
 
 (defn paint [term output-lines]
   (doall
     (map-indexed
-      #(let [b (try (nth @buffer %1) (catch Throwable e))]
-         (if (not= b %2) (t/put-string term %2 0 %1)))
+      #(let [b (try (nth @buffer %1) (catch Throwable e))
+             c (apply str (repeat cols " "))]
+         (if (not= b %2) (t/put-string term (str c "\r" %2) 0 %1)))
       output-lines))
   (t/move-cursor term 0 lines)
   (reset! buffer (vec output-lines)))
@@ -152,7 +154,8 @@
         work (Thread. read-loop)]
     (t/in-terminal
       term
-      (e/read-file f #(paint term (pprint %))) 
+      (e/init #(paint term (pprint %)))
+      ;(e/read-file f #(paint term (pprint %))) 
       (.start work)
       (.join work))))
 

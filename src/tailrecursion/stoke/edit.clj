@@ -5,17 +5,24 @@
     [tailrecursion.stoke.read :as r]
     [tailrecursion.stoke.util :as u]))
 
+(defn ok? [x]
+  (if (and x (zip/node x))
+    (let [n (zip/node x)
+          nn (zip/node n)
+          nr (zip/root n)]
+      (and (not= nr nn) (seq nr)))))
+
+(defn scratch []
+  (-> (atom "Ready.") r/read-all))
+
+(defn start-zip [forms]
+  (-> forms r/zipper zip/down))
+
 (defn make-point []
-  (let [ok? #(not (or (nil? %) (nil? (zip/node %)) (= (zip/root (zip/node %)) (zip/node (zip/node %)))))]
-    (atom (-> (atom "(comment welcome to stoke!)")
-            r/read-all
-            r/zipper
-            zip/down
-            u/meta-zip)
-          :validator ok?)))
+  (atom (-> (scratch) start-zip u/meta-zip) :validator ok?))
 
 (def point (atom (make-point) :validator (complement nil?)))
-(def file  (atom ""))
+(def file  (atom :scratch))
 (def files (atom {@file @point}))
 
 (defn get-point [] (-> @@point zip/node zip/node))
@@ -28,12 +35,12 @@
     (do
       (reset! point p)
       (reset! file f))
-    (when (.exists (io/file f))
+    (let [forms (if (.exists (io/file f)) (r/read-file f) (scratch))]
       (reset! point (make-point)) 
       (add-watch @point ::read-file (fn [_ _ _ x] (watch-fn x)))
       (reset! file f) 
       (swap! files assoc f @point) 
-      (add-history (zip/down (r/zipper (r/read-file f)))))))
+      (add-history (start-zip forms)))))
 
 (defn edit [f & args]
   (try
@@ -50,3 +57,6 @@
     (apply swap! @point f args)
     (catch Throwable e)))
 
+(defn init [watch-fn]
+  (watch-fn @@point)
+  (add-watch @point ::read-file (fn [_ _ _ x] (watch-fn x))))
