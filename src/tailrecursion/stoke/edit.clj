@@ -6,8 +6,13 @@
     [tailrecursion.stoke.util :as u]))
 
 (defn make-point []
-  (let [ok? #(not (or (nil? %) (nil? (zip/node %))))]
-    (atom (u/meta-zip (zip/vector-zip [])) :validator ok?))) 
+  (let [ok? #(not (or (nil? %) (nil? (zip/node %)) (= (zip/root (zip/node %)) (zip/node (zip/node %)))))]
+    (atom (-> (atom "(comment welcome to stoke!)")
+            r/read-all
+            r/zipper
+            zip/down
+            u/meta-zip)
+          :validator ok?)))
 
 (def point (atom (make-point) :validator (complement nil?)))
 (def file  (atom ""))
@@ -18,13 +23,14 @@
 (defn add-history [x]
   (swap! @point #(zip/rightmost (zip/down (zip/append-child % x)))))
 
-(defn read-file [f]
+(defn read-file [f watch-fn]
   (if-let [p (get @files f)] 
     (do
       (reset! point p)
       (reset! file f))
     (when (.exists (io/file f))
       (reset! point (make-point)) 
+      (add-watch @point ::read-file (fn [_ _ _ x] (watch-fn x)))
       (reset! file f) 
       (swap! files assoc f @point) 
       (add-history (zip/down (r/zipper (r/read-file f)))))))

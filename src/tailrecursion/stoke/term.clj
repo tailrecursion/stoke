@@ -1,9 +1,11 @@
 (ns tailrecursion.stoke.term
+  (:import (java.io PushbackReader))
   (:require
     [clojure.java.io                  :as io]
     [clojure.zip                      :as zip]
     [clojure.string                   :as string]
     [clojure.java.shell               :as shell]
+    [lanterna.terminal                :as t]
     [tailrecursion.stoke.edit         :as e]
     [tailrecursion.stoke.read         :as r]
     [tailrecursion.stoke.print        :as pp]
@@ -20,18 +22,20 @@
 (def cols   ((fnil parseInt "25") (System/getenv "COLUMNS"))) 
 (def mode   (atom :normal))
 (def mult   (atom nil))
+(def buffer (atom [""]))
 
 (defn set-mode! [x]
   (when (get @key-bindings x)
     (reset! mult nil) 
-    (reset! mode x)))
+    (reset! mode x))
+  x)
 
 (defn update-mult! [c]
   (swap! mult #(let [i (Character/digit c 10)]
                  (if (not %) i (+ (* 10 %) i)))))
 
 (defn mult-dispatch [c]
-  (if (Character/isDigit c) (update-mult! c) c))
+  (if (and (char? c) (Character/isDigit c)) (update-mult! c) c))
 
 (defn mult-cmd [g f & args]
   (dotimes [i (or @mult 1)] (apply g f args))
@@ -85,13 +89,12 @@
 (defn center [lines]
   (let [lnlen (count (str (count lines)))
         shift (- (int (Math/floor (/ (- cols pp/width) 2))) (inc lnlen)) 
-        pad   (apply str (repeat shift " "))]
-    (map #(str pad %) lines)))
+        pad   (apply str (repeat shift " "))
+        cls   (apply str (repeat cols " "))]
+    (->> lines (map #(str cls "\r" pad %)))))
 
-(defn pprint []
-  (print "\033[2J\r")
+(defn pprint [point]
   (let [colr  (fn [x] [:span [:pass (s/cursor x)] x])
-        pnt   (zip/node (zip/node @@e/point))
         post  #(if (::point (meta %1)) (colr %2) %2)
         rmbr  #(-> %
                  (string/replace #" \x08\n\n" "\n")
@@ -99,7 +102,7 @@
         src   (rmbr 
                 (with-out-str
                   (binding [pp/post-process post]
-                    (-> (zip/node @@e/point)
+                    (-> (zip/node point)
                       (zip/edit vary-meta assoc ::point true)
                       s/mark-syntax
                       (s/mark-point ::point)
@@ -125,16 +128,31 @@
         nw    (count all)
         over  (int (Math/ceil (/ (- nw lines) 2)))
         win   (->> (if (< 0 over) (drop over all) all) (take lines))]
-    (->> win center (string/join "\n") println)
-    (status)))
+    (vec (center win))))
 
-(defn start-loop [f]
-  (e/read-file f)
+(defn paint [term output-lines]
+  (doall
+    (map-indexed
+      #(let [b (try (nth @buffer %1) (catch Throwable e))]
+         (if (not= b %2) (t/put-string term %2 0 %1)))
+      output-lines))
+  (t/move-cursor term 0 lines)
+  (reset! buffer (vec output-lines)))
+
+(defn read-loop []
   (loop []
-    (pprint) 
     (let [c (char (.read System/in))]
       (let [k ((get-in @key-bindings [@mode :dispatch]) c) 
             f ((get-in @key-bindings [@mode k] identity) c)]
         (if (cond (= :quit f) false (keyword? f) (set-mode! f) :else true)
           (recur))))))
+
+(defn start-loop [f]
+  (let [term (t/get-terminal :text)
+        work (Thread. read-loop)]
+    (t/in-terminal
+      term
+      (e/read-file f #(paint term (pprint %))) 
+      (.start work)
+      (.join work))))
 
