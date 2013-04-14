@@ -4,6 +4,10 @@
 
 (declare remove-leftmost-child)
 
+(defn nil-guard
+  ([f] (nil-guard f nil))
+  ([f dfl] #(if (some nil? %&) dfl (apply f %&))))
+
 (defn meta-zip [root]
   (let [branch?   #(instance? clojure.lang.IMeta %)
         children  #(get (meta %) ::children)
@@ -35,7 +39,7 @@
 
 (defn repeat-while [z pred? f & args]
   (loop [loc (apply f z args)]
-    (if-let [nxt (and (pred? (zip/node loc)) (apply f loc args))] 
+    (if-let [nxt (and loc (pred? (zip/node loc)) (apply f loc args))] 
       (recur nxt)
       loc)))
 

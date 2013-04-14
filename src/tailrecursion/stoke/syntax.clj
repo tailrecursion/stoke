@@ -1,11 +1,11 @@
 (ns tailrecursion.stoke.syntax
   (:require
-    [tailrecursion.stoke.term.colors  :refer [colors]]
-    [clojure.string                   :as string]
     [clojure.zip                      :as zip]
+    [clojure.string                   :as string]
     [tailrecursion.stoke.print        :as pp]
     [tailrecursion.stoke.read         :as r]
-    [tailrecursion.stoke.util         :as u]))
+    [tailrecursion.stoke.util         :as u]
+    [tailrecursion.stoke.term.colors  :refer [colors]]))
 
 (defn cursor [x]
   (let [c (if (= x :break) (str \u2588) "")]
@@ -31,6 +31,13 @@
 (defn core?*    [x] (and (= :sym (pp/type* x)) (in-package? x "clojure")))
 (defn java?*    [x] (and (= :sym (pp/type* x)) (in-package? x "java")))
 (defn string?*  [x] (= :str (pp/type* x)))
+(defn char?*    [x] (and (= :sym (pp/type* x)) (= \\ (first (str x)))))
+(defn meta?*    [x] (= (symbol "^") (:prefix (meta x))))
+(defn defvar?*  [z] (let [n (zip/node z)]
+                      (if (and (symbol?* n) (not (meta?* n))) 
+                        (let [zz (u/repeat-while z meta?* zip/left)
+                              n  (if zz (zip/node zz))]
+                          (or (= 'def n) (= 'defn n) (= 'defn- n))))))
 
 (defn dfwalk [z f & args]
   (apply u/depth-first-walk z r/zipper f args))
@@ -44,7 +51,9 @@
 
 (defn mark-syntax [z]
   (dfwalk z #(let [n  (zip/node %)
-                   k  (cond (keyword?* n)  :keyword
+                   k  (cond (defvar?* %)   :defvar
+                            (char?* n)     :char
+                            (keyword?* n)  :keyword
                             (core?* n)     :clj-core
                             (java?* n)     :java-cls
                             (symbol?* n)   :symbol
