@@ -6,16 +6,19 @@
 (declare pretty)
 
 (def ^:dynamic post-process (fn [x y] y))
+(def ^:dynamic fanciness true)
 
 (def delims   #(:delims (meta %)))
 (def prefix   #(:prefix (meta %)))
 (def width    70)
 
 (defn color [x s]
-  (let [{c :color b :bold} (meta x)]
-    [[:pass (format "\033[%dm\033[38;5;%dm" (or b 0) (or c 7))]
-     [:text s] 
-     [:pass "\033[0m"]]))
+  (if fanciness
+    (let [{c :color b :bold} (meta x)]
+      [[:pass (format "\033[%dm\033[38;5;%dm" (or b 0) (or c 7))]
+       [:text s] 
+       [:pass "\033[0m"]])
+    [[:text s]]))
 
 (defn cat
   ([x]
@@ -115,7 +118,9 @@
 (defmethod pretty :set [x]
   (post x (pp-coll x `[:align ~@(cat (map pretty x))])))
 
-(defmethod pretty :key [x] (post x [:span [:pass " \b"] (:key x)]))
+(defmethod pretty :key [x] (post x (if fanciness
+                                     [:span [:pass " \b"] (:key x)]
+                                     [:span (:key x)])))
 (defmethod pretty :seq [x] (post x (pp-seq x)))
 (defmethod pretty :map [x] (post x (pp-coll x (by-pairs x))))
 (defmethod pretty :vec [x] ((get-method pretty :set) x))
@@ -124,6 +129,7 @@
 (defprinter pprint pretty {:width width})
 
 (defmethod pp-seq "def" [x] ((get-method pp-seq "defn") x))
+(defmethod pp-seq "defn-" [x] ((get-method pp-seq "defn") x))
 (defmethod pp-seq "fn" [x] ((get-method pp-seq "defn") x))
 (defmethod pp-seq "ns" [x] ((get-method pp-seq "defn") x))
 (defmethod pp-seq "if" [x] ((get-method pp-seq "defn") x))

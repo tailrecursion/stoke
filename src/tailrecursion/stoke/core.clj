@@ -9,10 +9,7 @@
 
 (defn debug-point [_]
   (binding [*print-meta* true]
-    (prn (e/get-point)))
-  (.read System/in)
-  (reset! t/buffer [])
-  (swap! @e/point identity))
+    (prn (e/get-point))))
 
 (def key-bindings
   {:normal
@@ -40,6 +37,7 @@
     \A        (t/enter-mode :paredit p/paredit-mode-rightmost)
     \O        (t/enter-mode :paredit p/paredit-mode-break-before)
     \o        (t/enter-mode :paredit p/paredit-mode-break-after)
+    (char 12) t/repaint
     \m        p/paredit-kill-prefix}
    :delete
    {:dispatch t/mult-dispatch
@@ -63,7 +61,9 @@
     (char 27) (constantly :normal)}
    :command
    {:dispatch c/command-dispatch
-    (char 27) (constantly :normal)}})
+    (char 27) (constantly :normal)
+    \e        c/read-file
+    \w        c/write-file}})
 
 (defn -main [f]
   (reset! t/key-bindings key-bindings)

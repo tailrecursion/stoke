@@ -25,8 +25,6 @@
 (def buffer (atom [""]))
 (def cmd    (atom ""))
 
-(add-watch cmd ::command (fn [_ _ _ _] (swap! @e/point identity)))
-
 (defn set-mode! [x]
   (when (get @key-bindings x)
     (reset! mult nil) 
@@ -143,6 +141,10 @@
   (t/move-cursor term 0 lines)
   (reset! buffer (vec output-lines)))
 
+(defn repaint [_]
+  (reset! buffer [])
+  (swap! @e/point identity))
+
 (defn read-loop []
   (loop []
     (let [c (char (.read System/in))]
@@ -153,6 +155,9 @@
 
 (let [term (t/get-terminal :text)
       work (Thread. read-loop)]
+
+  (add-watch cmd ::command (fn [_ _ _ _]
+                             (paint term (concat (butlast @buffer) [@cmd]))))
 
   (defn read-file [f]
     (e/read-file f #(paint term (pprint %)))) 

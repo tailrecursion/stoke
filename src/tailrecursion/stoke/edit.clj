@@ -1,9 +1,10 @@
 (ns tailrecursion.stoke.edit
   (:require
-    [clojure.java.io          :as io]
-    [clojure.zip              :as zip]
-    [tailrecursion.stoke.read :as r]
-    [tailrecursion.stoke.util :as u]))
+    [clojure.java.io            :as io]
+    [clojure.zip                :as zip]
+    [tailrecursion.stoke.read   :as r]
+    [tailrecursion.stoke.print  :as p]
+    [tailrecursion.stoke.util   :as u]))
 
 (defn ok? [x]
   (if (and x (zip/node x))
@@ -41,6 +42,15 @@
       (reset! file f) 
       (swap! files assoc f @point) 
       (add-history (start-zip forms)))))
+
+(defn write-file []
+  (binding [p/fanciness false]
+    (try
+      (->>
+        (with-out-str (-> @@point zip/node zip/root p/pprint))
+        (spit @file)) 
+      true
+      (catch Throwable e false))))
 
 (defn edit [f & args]
   (try
